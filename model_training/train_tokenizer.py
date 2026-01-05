@@ -1,6 +1,6 @@
 import os
 from tokenizers import ByteLevelBPETokenizer, models, Tokenizer, trainers, pre_tokenizers
-from .get_encoded_dataset import get_tokenizer_dataset
+from data_processing.get_encoded_dataset import get_tokenizer_dataset
 from utilities import clear_cache
 
 

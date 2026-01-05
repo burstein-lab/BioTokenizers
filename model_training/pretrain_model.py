@@ -3,7 +3,7 @@ import os
 import argparse
 from pathlib import Path
 from transformers import RobertaConfig, RobertaForMaskedLM, DataCollatorForLanguageModeling, TrainingArguments, Trainer
-from .get_encoded_dataset import get_train_test
+from data_processing.get_encoded_dataset import get_train_test
 from utilities import clear_cache, load_tokenizer
 from train_tokenizer import train_tokenizer
 from datasets import load_from_disk

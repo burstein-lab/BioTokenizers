@@ -2,7 +2,7 @@ import gc
 import torch
 from tokenizers.processors import BertProcessing
 from transformers import RobertaTokenizerFast, RobertaModel, RobertaConfig, RobertaForSequenceClassification, RobertaForTokenClassification
-from model_training.roberta_regression_model import RobertaForRegression # TODO add
+from model_training.roberta_regression_model import RobertaForRegression
 
 
 def clear_cache():

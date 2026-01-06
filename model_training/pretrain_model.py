@@ -83,9 +83,9 @@ def main(args):
         overwrite_output_dir=True,
         num_train_epochs=args.epochs,
         auto_find_batch_size=False,
-        per_device_train_batch_size=64,
-        gradient_accumulation_steps=8,
-        per_device_eval_batch_size=64,
+        per_device_train_batch_size=args.batch_size,
+        gradient_accumulation_steps=args.gradient_accumulation,
+        per_device_eval_batch_size=args.batch_size,
         logging_steps=args.logging_interval,
         eval_steps=1000,
         save_steps=args.save_interval,
@@ -130,6 +130,8 @@ if __name__ == '__main__':
     parser.add_argument('-p', type=float, default=0.15, help='masking rate')
     parser.add_argument('--ncpu', type=int, default=10, help='number of cpus')
     # training parameters
+    parser.add_argument('-b', '--batch_size', type=int, default=64, help='Batch size. Default: 64')
+    parser.add_argument('-ga', '--gradient_accumulation', type=int, default=8, help='Gradient Accumulation. Default: 8')
     parser.add_argument('-e', '--epochs', type=int, default=5, help='number of epochs')
     parser.add_argument('--save-interval', type=int, default=1000, help='number of step between data saving')
     parser.add_argument('--logging-interval', type=int, default=1000, help='number of step between data logginh')

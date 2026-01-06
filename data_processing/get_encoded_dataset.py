@@ -56,3 +56,23 @@ def get_train_test(data_dir, mapping_code=20, train_file_num=0, proc=10, is_eval
         train = train.map(lambda x: map_amino_acids(x, mapping_code), num_proc=proc)
         test = test.map(lambda x: map_amino_acids(x, mapping_code), num_proc=proc)
     return train, test
+
+
+def get_downstream_train_test(data_dir, mapping_code=20, train_file_num=0, proc=10, get_val=False):
+    train_pattern = os.path.join(data_dir, 'train', '*.csv')
+    test_pattern = os.path.join(data_dir, 'test', '*.csv')
+    file_mapping = {'train': glob.glob(train_pattern), "test": glob.glob(test_pattern)}
+    if get_val:
+        val_pattern = os.path.join(data_dir, 'validation', '*.csv')
+        file_mapping['val'] = glob.glob(val_pattern)
+    if train_file_num > 0:
+        file_mapping['train'], file_mapping['test'] = file_mapping['train'][:train_file_num], file_mapping['test'][:int(train_file_num/4)]
+    dataset = load_dataset('csv', data_files=file_mapping, cache_dir=CACHE_DIR)
+    train, test = dataset['train'], dataset['test']
+    val = dataset['val'] if get_val else None
+    if mapping_code != 20:
+        train = train.map(lambda x: map_amino_acids(x, mapping_code), num_proc=proc)
+        test = test.map(lambda x: map_amino_acids(x, mapping_code), num_proc=proc)
+        if get_val:
+            val = val.map(lambda x: map_amino_acids(x, mapping_code), num_proc=proc)
+    return train, test, val

@@ -29,7 +29,7 @@ def map_amino_acids(data, mapping_code=20, col='prot'):
 
 
 def get_tokenizer_dataset(data_dir, mapping_code=20, file_num=0):
-    pattern = f"{data_dir}/*.csv"
+    pattern = os.path.join(data_dir, "*.csv")
     data_files = glob.glob(pattern)
     if file_num > 0:
        data_files = data_files[:file_num]

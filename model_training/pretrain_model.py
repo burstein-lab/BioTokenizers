@@ -129,6 +129,8 @@ if __name__ == '__main__':
     parser.add_argument('--max-length', type=int, default=1026, help='maximal sequence length')
     parser.add_argument('-p', type=float, default=0.15, help='masking rate')
     parser.add_argument('--ncpu', type=int, default=10, help='number of cpus')
+    parser.add_argument('--debug', action='store_true')
+
     # training parameters
     parser.add_argument('-b', '--batch_size', type=int, default=64, help='Batch size. Default: 64')
     parser.add_argument('-ga', '--gradient_accumulation', type=int, default=8, help='Gradient Accumulation. Default: 8')

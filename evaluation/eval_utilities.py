@@ -4,7 +4,7 @@ torch.cuda.empty_cache()
 import matplotlib.pyplot as plt
 import evaluate
 f1, precision, recall, accuracy, roc_auc, mc_roc_auc = evaluate.load("f1"), evaluate.load("precision"), evaluate.load("recall"), evaluate.load("accuracy"), evaluate.load("roc_auc"), evaluate.load("roc_auc", "multiclass")
-from sklearn.metrics import precision_recall_curve, roc_auc_score, auc, matthews_corrcoef, average_precision_score
+from sklearn.metrics import precision_recall_curve, roc_auc_score, auc, matthews_corrcoef, average_precision_score, roc_curve
 from sklearn.preprocessing import label_binarize
 
 
@@ -83,4 +83,39 @@ def plot_all_metric_results(df, output_path, metric='weighted', colors=COLORS):
     ax.legend(bbox_to_anchor=(1.01, 1), loc='upper left')
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def get_results_dict(scores, labels, n_labels=2, metric='weighted', is_probs=False):
+    probs = scores if is_probs else torch.nn.functional.softmax(scores.float(), dim=-1)
+    res_dict = return_computed_metrics(probs, labels)
+    rocauc_score, prauc_score, chosen_precision, chosen_recall, chosen_f1, mcc_prec, mcc_rec, mcc = calc_metrics(labels, probs[:, 1] if n_labels == 2 else probs, n_labels, metric=metric)
+    res_dict.update({'AUROC': rocauc_score, 'AUPR': prauc_score, 'Precision of Best F1': chosen_precision,
+                'Recall of Best F1': chosen_recall, 'Best F1': chosen_f1, 'Precision of Best MCC': mcc_prec,
+                'Recall of Best MCC': mcc_rec, 'Best MCC': mcc})
+    return res_dict
+
+
+def plot_binary_AUPR_AUROC(labels, probs, model_label, color, axes):
+    fpr, tpr, _ = roc_curve(labels, probs[:, 1])
+    precision, recall, _ = precision_recall_curve(labels, probs[:, 1])
+    rocauc_score = roc_auc_score(labels, probs[:, 1])
+    prauc_score = auc(recall, precision)
+
+    axes[0].plot(fpr, tpr, lw=2, label=f'{model_label} (ROC AUC: {round(rocauc_score, 2)})', color=color)
+    axes[1].plot(recall, precision, lw=2, label=f'{model_label} (PR AUC: {round(prauc_score, 2)})', color=color)
+
+
+def finish_AUPR_AUROC_figure(f, axes, img_path):
+    axes[0].set_xlabel('FPR')
+    axes[1].set_xlabel('Recall')
+    axes[0].set_ylabel('TPR')
+    axes[1].set_ylabel('Precision')
+    axes[0].legend(loc="best", fontsize='small')
+    axes[1].legend(loc="best", fontsize='small')
+    axes[0].plot([0, 1], [0, 1], '--', color='grey')
+    axes[0].set_title(f"ROC curve")
+    axes[1].set_title(f"Precision Recall curve")
+    f.tight_layout()
+    plt.savefig(img_path)
     plt.close()

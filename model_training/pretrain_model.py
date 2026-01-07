@@ -12,7 +12,7 @@ os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 MAIN_DIR = Path(__name__).parent.absolute()
-CACHE_DIR = os.path.join(MAIN_DIR, "cache/")
+CACHE_DIR = os.path.join(MAIN_DIR, "cache")
 PROT_SAMPLE = 15_000_000
 
 # this code was inspired from : https://mccormickml.com/2019/05/14/BERT-word-embeddings-tutorial/
@@ -137,7 +137,7 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--epochs', type=int, default=5, help='number of epochs')
     parser.add_argument('--save-interval', type=int, default=1000, help='number of step between data saving')
     parser.add_argument('--logging-interval', type=int, default=1000, help='number of step between data logginh')
-    parser.add_argument('--device', type=int, default=-1, help='compute device to use')
+    parser.add_argument('--device', type=int, default=-1, help='compute device to use, -1 for cpu. default: -1')
     parser.set_defaults(debug=False)
     parser.set_defaults(pre_tokenized=False)
     args = parser.parse_args()

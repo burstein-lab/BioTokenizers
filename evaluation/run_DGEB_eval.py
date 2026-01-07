@@ -220,15 +220,15 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser('Running DGEB tasks on ProtBERTa')
     # training dataset - '../'
-    parser.add_argument('--model_path', help='path to the model')
+    parser.add_argument('--model_path', help='path to the pre-trained model. Should contain ProtBERTa_X in the title where X is the aa_mapping (alphabet size)')
     parser.add_argument('--output_dir', help='path to the directory to save the results')
-    parser.add_argument('--tokenizer_file', help='path to tokenizer file')
+    parser.add_argument('--tokenizer_prefix', help='Prefix path to tokenizer files, such that the full path is tokenizer_prefix + aa_mapping (alphabet size)')
     args = parser.parse_args()
 
     tasks = dgeb.get_tasks_by_modality(dgeb.Modality.PROTEIN)
     evaluation = dgeb.DGEB(tasks=tasks)
     for aa_mapping in (2, 4, 8, 12, 20):
-        tokenizer_path = args.tokenizer_file + str(aa_mapping)
+        tokenizer_path = args.tokenizer_prefix + str(aa_mapping)
         model_path = re.sub('ProtBERTa_(20|12|4|8|2)', f'ProtBERTa_{aa_mapping}', args.model_path)
         model = ProtBERTa(model_name=model_path, tokenizer_path=tokenizer_path)
         output_dir = os.path.join(args.output_dir, f'ProtBERTa_{aa_mapping}')

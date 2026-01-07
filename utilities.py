@@ -1,4 +1,6 @@
 import gc
+import os
+import pickle
 import torch
 from tokenizers.processors import BertProcessing
 from transformers import RobertaTokenizerFast, RobertaModel, RobertaConfig, RobertaForSequenceClassification, RobertaForTokenClassification, DataCollatorWithPadding
@@ -6,6 +8,7 @@ from tqdm.auto import tqdm
 from torch.utils.data import DataLoader
 from model_training.roberta_regression_model import RobertaForRegression
 from model_training.roberta_with_advanced_pooling import mean_pooling
+from data_processing.get_encoded_dataset import map_amino_acids
 
 
 def clear_cache():
@@ -65,3 +68,18 @@ def run_model_in_batches(model, tokenizer, dataset, device, batch_size=128, col=
             all_model_res.append(res)
 
     return torch.cat(all_model_res, dim=0)
+
+
+def create_model_embeddings(dataset, tokenizer_file, model_path, aa_mapping, task, out_dir, proc=10, col='prot', max_length=1026, device_num=-1, batch_size=32):
+    model, tokenizer, device = load_model_and_tokenizer(model_path, tokenizer_file, device_num, max_length=max_length)
+    for op in ['train', 'test']:
+        output_file = os.path.join(out_dir, f'{task}_ProtBERTa_{aa_mapping}_{op}_embs.pkl')
+        if os.path.exists(output_file):
+            continue
+        else:
+            print(f'Calculating embeddings for ProtBERTa{aa_mapping}', flush=True)
+            ds = dataset[op].map(lambda x: map_amino_acids(x, int(aa_mapping)), num_proc=proc) if int(aa_mapping) != 20 else dataset[op]
+            res = run_model_in_batches(model, tokenizer, ds, device, batch_size=batch_size, col=col, ncpus=proc, ret_logits=False)
+
+            with open(output_file, 'wb') as fout:
+                pickle.dump(res, fout)

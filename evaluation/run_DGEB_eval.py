@@ -219,7 +219,6 @@ def plot_selected_metrics(res, output_dir, metric_lst=REL_METRICS, prefix='DGEB_
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser('Running DGEB tasks on ProtBERTa')
-    # training dataset - '../'
     parser.add_argument('--model_path', help='path to the pre-trained model. Should contain ProtBERTa_X in the title where X is the aa_mapping (alphabet size)')
     parser.add_argument('--output_dir', help='path to the directory to save the results')
     parser.add_argument('--tokenizer_prefix', help='Prefix path to tokenizer files, such that the full path is tokenizer_prefix + aa_mapping (alphabet size)')

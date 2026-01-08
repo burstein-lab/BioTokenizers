@@ -2,6 +2,7 @@ import os
 import torch
 import pandas as pd
 import glob
+import re
 from torch.nn.functional import cosine_similarity
 from datasets import load_dataset
 from data_processing.get_encoded_dataset import map_amino_acids
@@ -11,16 +12,15 @@ from model_training.roberta_with_advanced_pooling import mean_pooling
 from pathlib import Path
 
 AA_MAPPINGS = [2, 4, 8, 12, 20]
-MAX_LEN = 1026
 DIR_PATH = Path(__name__).parent.absolute()
 
 
-def get_token_ids(sentence, tokenizer):
-    tok_res_1 = tokenizer(sentence['prot_1'], truncation=True, max_length=MAX_LEN, padding='max_length', return_tensors='pt')
+def get_token_ids(sentence, tokenizer, max_len=1026):
+    tok_res_1 = tokenizer(sentence['prot_1'], truncation=True, max_length=max_len, padding='max_length', return_tensors='pt')
     sentence['input_ids_1'] = tok_res_1['input_ids']
     sentence['attention_mask_1'] = tok_res_1['attention_mask']
 
-    tok_res_2 = tokenizer(sentence['prot_2'], truncation=True, max_length=MAX_LEN, padding='max_length', return_tensors='pt')
+    tok_res_2 = tokenizer(sentence['prot_2'], truncation=True, max_length=max_len, padding='max_length', return_tensors='pt')
     sentence['input_ids_2'] = tok_res_2['input_ids']
     sentence['attention_mask_2'] = tok_res_2['attention_mask']
     return sentence
@@ -60,31 +60,31 @@ def get_all_metrics(df):
     return res
 
 
-def get_pairwise_similarity(dataset, aa_mapping, proc=10):
+def get_pairwise_similarity(dataset, model_path, tokenizer_file, aa_mapping, proc=10, device_num=-1, batch_size=16, max_len=1026):
     data_files = glob.glob(os.path.join(dataset, "*.csv"))
     dataset = load_dataset('csv', data_files=data_files, cache_dir=os.path.join(DIR_PATH, "cache"))['train']
     dataset = dataset.map(lambda x: map_amino_acids(x, aa_mapping, 'prot_1'), num_proc=proc)
     dataset = dataset.map(lambda x: map_amino_acids(x, aa_mapping, 'prot_2'), num_proc=proc)
 
-    tokenizer_file = os.path.join(DIR_PATH, 'tokenizers', f'BPE_tokenizer_prot_5000_min_freq_2_mapping_{aa_mapping}')
-    tokenizer = load_tokenizer(tokenizer_file, MAX_LEN)
-    dataset = dataset.map(lambda x: get_token_ids(x, tokenizer), batched=True, num_proc=proc)
+    tokenizer = load_tokenizer(tokenizer_file, max_len)
+    dataset = dataset.map(lambda x: get_token_ids(x, tokenizer, max_len), batched=True, num_proc=proc)
     dataset.set_format(type="torch", columns=['input_ids_1', 'input_ids_2', 'attention_mask_1', 'attention_mask_2'])
 
-    model_name = os.path.join(DIR_PATH, 'models', f'pretrained-ProtBERTa_{aa_mapping}_1024/5_epochs/')
-    model, device = load_model(model_name, 4)
-    dataset = dataset.map(lambda x: get_similarity(x, model, device), batched=True, num_proc=1, batch_size=16)
+    model, device = load_model(model_path, device_num)
+    dataset = dataset.map(lambda x: get_similarity(x, model, device), batched=True, num_proc=1, batch_size=batch_size)
 
     df = dataset.to_pandas()
     df['similarity'] = df['similarity'].apply(lambda x: x if x <= 1.0 else 1.0)  # floating point errors
     return df
 
 
-def eval_ProtBERTa_pairwise_similarity(dataset, output_dir, output_prefix, proc=10):
+def eval_ProtBERTa_pairwise_similarity(dataset, model_path, tokenizer_prefix, output_dir, output_prefix, proc=10, device_num=-1, batch_size=16, max_len=1026):
     all_res = {}
     for aa_mapping in AA_MAPPINGS:
         print(aa_mapping, flush=True)
-        df = get_pairwise_similarity(dataset, aa_mapping, proc=proc)
+        tokenizer_path = tokenizer_prefix + str(aa_mapping)
+        model_path = re.sub('ProtBERTa_(20|12|4|8|2)', f'ProtBERTa_{aa_mapping}', model_path)
+        df = get_pairwise_similarity(dataset, model_path, tokenizer_path, aa_mapping, proc=proc, device_num=device_num, batch_size=batch_size, max_len=max_len)
         res_dict = get_all_metrics(df)  # Overall Metrics
         all_res[f'ProtBERTa_{aa_mapping}'] = res_dict
 
@@ -102,9 +102,15 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser('Running Zero-shot pair-wise classification with a pre-trained ProtBERTa model')
     parser.add_argument('--dataset', help='path to a directory with .csv files containing protein pairs and labels. Columns should be prot_1, prot_2, label')
+    parser.add_argument('--model_path', help='path to a the finetuned model. Should contain ProtBERTa_X in the title where X is the aa_mapping (alphabet size)')
+    parser.add_argument('--tokenizer_prefix', help='Prefix path to tokenizer files, such that the full path is tokenizer_prefix + aa_mapping (alphabet size)')
     parser.add_argument('--output_dir', help='path to output directory for results')
     parser.add_argument('--output_prefix', help='Prefix to output files.')
     parser.add_argument('--ncpu', type=int, default=10, help='Number of cpus to use. Default: 10')
+    parser.add_argument('-b', '--batch_size', type=int, default=16, help='Batch size. Default: 16')
+    parser.add_argument('--max_length', type=int, default=1026, help='maximal sequence length')
+    parser.add_argument('--device', type=int, default=-1, help='compute device to use, -1 for cpu. default: -1')
     args = parser.parse_args()
 
-    eval_ProtBERTa_pairwise_similarity(args.dataset, args.output_dir, args.output_prefix, proc=args.ncpu)
+    eval_ProtBERTa_pairwise_similarity(args.dataset, args.model_path, args.tokenizer_prefix, args.output_dir,
+                                       args.output_prefix, proc=args.ncpu, device_num=args.device, batch_size=args.batch_size, max_len=args.max_length)

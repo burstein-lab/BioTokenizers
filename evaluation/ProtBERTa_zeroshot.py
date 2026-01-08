@@ -206,25 +206,32 @@ class EmbeddingClassifier:
         return probs
 
 
-def get_zero_shot_performance_per_model(data_dir, emb_dir, model_path, tokenizer_path, aa_mapping, task, k=5, distance_metric='cosine', proc=10, col='prot', max_length=1026, device=-1, batch_size=32):
-    model_name = f'ProtBERTa_{aa_mapping}'
+def get_train_test_embeddings(data_dir, emb_dir, tokenizer_path, model_path, task, aa_mapping, proc=10, col='prot', max_length=1026, device=-1, batch_size=32):
     file_pattern = {'train': glob.glob(os.path.join(data_dir, 'train', '*.csv')), "test": glob.glob(os.path.join(data_dir, 'test', '*.csv'))}
     dataset = load_dataset('csv', data_files=file_pattern, cache_dir=CACHE_DIR)
     dataset = dataset.class_encode_column('label')
     train_labels = torch.tensor(dataset['train']['label'])
     test_labels = list(dataset['test']['label'])
 
-    create_model_embeddings(dataset, tokenizer_path, model_path, aa_mapping, task, emb_dir, proc=proc, col=col, max_length=max_length, device_num=device, batch_size=batch_size)
+    train_emb_file = os.path.join(emb_dir, f'{task}_ProtBERTa_{aa_mapping}_train_embs.pkl')
+    test_emb_file = os.path.join(emb_dir, f'{task}_ProtBERTa_{aa_mapping}_test_embs.pkl')
+    if not os.path.exists(train_emb_file) or not os.path.exists(test_emb_file):
+        create_model_embeddings(dataset, tokenizer_path, model_path, aa_mapping, task, emb_dir, proc=proc, col=col, max_length=max_length, device_num=device, batch_size=batch_size)
 
-    train_file = os.path.join(emb_dir, f'{task}_ProtBERTa_{aa_mapping}_train_embs.pkl')
-    with open(train_file, 'rb') as fin:
+    with open(train_emb_file, 'rb') as fin:
         train_embeddings = pickle.load(fin)
         train_embeddings = torch.tensor(train_embeddings)
 
-    test_file = os.path.join(emb_dir, f'{task}_ProtBERTa_{aa_mapping}_test_embs.pkl')
-    with open(test_file, 'rb') as fin:
+    with open(test_emb_file, 'rb') as fin:
         test_embeddings = pickle.load(fin)
         test_embeddings = torch.tensor(test_embeddings)
+
+    return train_embeddings, train_labels, test_embeddings, test_labels
+
+
+def get_zero_shot_performance_per_model(data_dir, emb_dir, model_path, tokenizer_path, aa_mapping, task, k=5, distance_metric='cosine', proc=10, col='prot', max_length=1026, device=-1, batch_size=32):
+    model_name = f'ProtBERTa_{aa_mapping}'
+    train_embeddings, train_labels, test_embeddings, test_labels = get_train_test_embeddings(data_dir, emb_dir, tokenizer_path, model_path, task, aa_mapping, proc=proc, col=col, max_length=max_length, device=device, batch_size=batch_size)
 
     all_res = {}
     for method in ['knn', 'centroid']:

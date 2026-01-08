@@ -11,6 +11,12 @@ from sklearn.preprocessing import label_binarize
 COLORS = {'ProtBERTa_2': '#E6AA61', 'ProtBERTa_4': '#e67961', 'ProtBERTa_8': '#ce4763', 'ProtBERTa_12': '#a3386f', 'ProtBERTa_20': '#672a6b'}
 
 
+def clean_col_name(col):
+    clean_col = col.replace('_', ' ').title()
+    clean_col = clean_col.upper() if clean_col in ('mae', 'mse', 'rmse', 'AUROC', 'AUPR', 'auroc', 'aupr') else clean_col.title()
+    return clean_col
+
+
 def calc_mcc(labels, scores, threshold):
     pred = (scores >= threshold).astype(int)
     if np.all(pred == pred[0]):  # if all prediction in the same

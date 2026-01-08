@@ -46,7 +46,7 @@ def create_regression_cleveland_plot(file_lst, title_lst, metric, output_file):
     plt.close()
 
 
-def eval_model_on_test(model_path, tokenizer_file, dataset, output_file, device_num, metric='weighted', n_labels=2, is_regression=False, is_pairwise=False):
+def eval_model_on_test(model_path, tokenizer_file, dataset, output_file, device_num, metric='weighted', n_labels=2, is_regression=False, is_pairwise=False, proc=10, max_len=1026, batch_size=64, col='prot'):
     f, axes = plt.subplots(1, 2, figsize=(10, 5))
     all_res = []
     for aa_mapping in [2, 4, 8, 12, 20]:
@@ -54,13 +54,13 @@ def eval_model_on_test(model_path, tokenizer_file, dataset, output_file, device_
         print(f'aa_mapping: {aa_mapping}')
         tokenizer_path = tokenizer_file + str(aa_mapping)
         model_path = re.sub('ProtBERTa_(20|12|4|8|2)', f'ProtBERTa_{aa_mapping}', model_path)
-        model, tokenizer, device = load_model_and_tokenizer(model_path, tokenizer_path, device_num, max_length=1026, model_type='regression' if is_regression else 'SeqClass', n_labels=n_labels)
-        _, test_dataset, _ = get_downstream_train_test(dataset, mapping_code=20 if is_pairwise else aa_mapping, train_file_num=0, proc=10)
+        model, tokenizer, device = load_model_and_tokenizer(model_path, tokenizer_path, device_num, max_length=max_len, model_type='regression' if is_regression else 'SeqClass', n_labels=n_labels)
+        _, test_dataset, _ = get_downstream_train_test(dataset, mapping_code=20 if is_pairwise else aa_mapping, proc=proc)
 
         if is_pairwise:
-            test_dataset = prepare_pairwise_dataset(test_dataset, aa_mapping, tokenizer, 1026, 10)
+            test_dataset = prepare_pairwise_dataset(test_dataset, aa_mapping, tokenizer, max_len, proc)
 
-        model_res = run_model_in_batches(model, tokenizer, test_dataset, device, batch_size=64)
+        model_res = run_model_in_batches(model, tokenizer, test_dataset, device, batch_size=batch_size, col=col)
         if is_regression:
             metric = ''
             res_dict = compute_metrics_regression((model_res, test_dataset.to_pandas()['label'].tolist()))
@@ -91,7 +91,11 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', help='path to a directory with .csv train and test dataset')
     parser.add_argument('--output_file', type=str, help='Path to output file, should end with .pdf or .svg or .png')
     parser.add_argument('--metric', type=str, help='Metric to calculate (micro, macro, weighted). default: weighted', default='weighted')
+    parser.add_argument('--col_name', '-col', type=str, default='prot', help='Column name for protein sequences. default: prot')
     parser.add_argument('--n_labels', type=int, default=2, help='Number of labels predicted by the model. default: 2')
+    parser.add_argument('--max_length', type=int, default=1026, help='maximal sequence length')
+    parser.add_argument('--ncpu', type=int, default=10, help='number of cpus')
+    parser.add_argument('-b', '--batch_size', type=int, default=64, help='Batch size. Default: 64')
     parser.add_argument('--device', type=int, default=-1, help='compute device to use, -1 for cpu. default: -1')
     parser.add_argument('--is_pairwise', action='store_true', help='Choose this to evaluate a pairwise classification model. Default: False')
     parser.add_argument('--is_regression', action='store_true', help='Choose this to evaluate a regression model. Default: False')
@@ -104,4 +108,4 @@ if __name__ == '__main__':
     if args.file_lst and args.titles:  # plotting cleveland regression plot from existing files
         create_regression_cleveland_plot(args.file_lst, args.titles, args.metric, args.output_file)
     else:
-        eval_model_on_test(args.model_path, args.tokenizer_prefix, args.dataset, args.output_file, args.device, metric=args.metric, n_labels=args.n_labels, is_regression=args.is_regression, is_pairwise=args.is_pairwise)
+        eval_model_on_test(args.model_path, args.tokenizer_prefix, args.dataset, args.output_file, args.device, metric=args.metric, n_labels=args.n_labels, is_regression=args.is_regression, is_pairwise=args.is_pairwise, proc=args.ncpu, max_len=args.max_length, batch_size=args.batch_size, col=args.col_name)

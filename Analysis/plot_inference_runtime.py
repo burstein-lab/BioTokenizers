@@ -89,23 +89,23 @@ def measure_model_runtime_on_data(eval_dataloader, model, start, end, device):
     return total_time
 
 
-def create_ProtBerta_runtime_plot(model_path, tokenizer_file, dataset, output_file, repeats=10, device_num=-1, size_factor=1000, n_labels=2, warmup=100, is_pairwise=False, is_regression=False):
+def create_ProtBerta_runtime_plot(model_path, tokenizer_file, dataset, output_file, repeats=10, device_num=-1, size_factor=1000, n_labels=2, warmup=100, is_pairwise=False, is_regression=False, col='prot', proc=10, max_len=1026, batch_size=128):
     all_res = []
 
     torch.backends.cudnn.benchmark = True
     for aa_mapping in [2, 4, 8, 12, 20]:
         tokenizer_path = tokenizer_file + str(aa_mapping)
         model_path = re.sub('ProtBERTa_(20|12|4|8|2)', f'ProtBERTa_{aa_mapping}', model_path)
-        model, tokenizer, device = load_model_and_tokenizer(model_path, tokenizer_path, device_num,max_length=1026, model_type='regression' if is_regression else 'SeqClass', n_labels=n_labels)
+        model, tokenizer, device = load_model_and_tokenizer(model_path, tokenizer_path, device_num,max_length=max_len, model_type='regression' if is_regression else 'SeqClass', n_labels=n_labels)
         data_collator = DataCollatorWithPadding(tokenizer)
-        _, test_dataset, _ = get_downstream_train_test(dataset, mapping_code=20 if is_pairwise else aa_mapping, proc=10)
+        _, test_dataset, _ = get_downstream_train_test(dataset, mapping_code=20 if is_pairwise else aa_mapping, proc=proc)
         size_factor = size_factor if size_factor > 0 else math.floor(len(test_dataset) / SIZES[-1])  # if zero, adjust size factor based on dataset size
 
         if is_pairwise:
-            test_dataset = prepare_pairwise_dataset(test_dataset, aa_mapping, tokenizer, 1026, 10)
+            test_dataset = prepare_pairwise_dataset(test_dataset, aa_mapping, tokenizer, max_len, proc)
 
         else:
-            test_dataset = test_dataset.map(lambda e: tokenizer(e['prot'], truncation=True), batched=True, keep_in_memory=False, num_proc=10)
+            test_dataset = test_dataset.map(lambda e: tokenizer(e[col], truncation=True), batched=True, keep_in_memory=False, num_proc=proc)
 
         test_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label'])
 
@@ -113,15 +113,15 @@ def create_ProtBerta_runtime_plot(model_path, tokenizer_file, dataset, output_fi
         test_dataset = test_dataset.remove_columns(columns_to_remove)
 
         # Warmup
-        curr_size = warmup*128
+        curr_size = warmup*batch_size
         if curr_size > len(test_dataset):
             nrepeats = int(curr_size / len(test_dataset)) + 1
             for repeat in range(nrepeats):
                 warmup_set = test_dataset.shuffle(seed=repeat)
-                run_model_in_batches(model, tokenizer, warmup_set, device, batch_size=128)
+                run_model_in_batches(model, tokenizer, warmup_set, device, batch_size=batch_size)
         else:
             warmup_set = test_dataset.shuffle(seed=42).select(range(curr_size))
-            run_model_in_batches(model, tokenizer, warmup_set, device, batch_size=128)
+            run_model_in_batches(model, tokenizer, warmup_set, device, batch_size=batch_size)
 
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
@@ -133,7 +133,7 @@ def create_ProtBerta_runtime_plot(model_path, tokenizer_file, dataset, output_fi
                 break
             for repeat in range(repeats):
                 curr_set = test_dataset.shuffle(seed=full_size+repeat).select(range(full_size))
-                eval_dataloader = DataLoader(curr_set, batch_size=128, collate_fn=data_collator, shuffle=False, pin_memory=True)
+                eval_dataloader = DataLoader(curr_set, batch_size=batch_size, collate_fn=data_collator, shuffle=False, pin_memory=True)
                 elapsed_time = measure_model_runtime_on_data(eval_dataloader, model, start, end, device)
                 all_res.append({'model': f'ProtBERTa_{aa_mapping}', 'size': size_to_save, 'runtime': elapsed_time})
 
@@ -156,6 +156,9 @@ if __name__ == '__main__':
     parser.add_argument('--n_repeats', type=int, default=10, help='number of repeats to measure for each size')
     parser.add_argument('--device', type=int, default=-1, help='compute device to use, -1 for cpu. default: -1')
     parser.add_argument('--size_factor', type=int, default=1000, help='Number to skip over when increasing dataset size. If zero, a factor is chosen based on the dataset size. default: 1000')
+    parser.add_argument('--max_length', type=int, default=1026, help='maximal sequence length')
+    parser.add_argument('--ncpu', type=int, default=10, help='number of cpus')
+    parser.add_argument('-b', '--batch_size', type=int, default=64, help='Batch size. Default: 64')
     parser.add_argument('--n_labels', type=int, default=2, help='Number of labels predicted by the model. default: 2')
     parser.add_argument('--warm_up', type=int, default=100, help='number of warmup batches before starting timing. default: 100')
     parser.add_argument('--is_pairwise', action='store_true', help='Choose this to evaluate a pairwise classification model. Default: False')
@@ -169,4 +172,4 @@ if __name__ == '__main__':
     if args.file_lst and args.tasks:  # plotting multiple subplots from existing files
         plot_ProtBerta_runtime_subplots(args.file_lst, args.tasks, args.out_file)
     else:
-        create_ProtBerta_runtime_plot(args.model_path, args.tokenizer_prefix, args.dataset, args.out_file, repeats=args.n_repeats, device_num=args.device, size_factor=args.size_factor, n_labels=args.n_labels, warmup=args.warm_up, is_pairwise=args.is_pairwise, is_regression=args.is_regression)
+        create_ProtBerta_runtime_plot(args.model_path, args.tokenizer_prefix, args.dataset, args.out_file, repeats=args.n_repeats, device_num=args.device, size_factor=args.size_factor, n_labels=args.n_labels, warmup=args.warm_up, is_pairwise=args.is_pairwise, is_regression=args.is_regression, max_len=args.max_length, proc=args.ncpu, batch_size=args.batch_size)

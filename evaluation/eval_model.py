@@ -11,6 +11,41 @@ import torch
 torch.backends.cudnn.benchmark = True
 
 
+def create_regression_cleveland_plot(file_lst, title_lst, metric, output_file):
+    """
+    Create Cleveland dot plot for regression results across multiple tasks.
+    :param file_lst: List of results pickle files, one per task - output of the eval_model_on_test function.
+    :param title_lst: List of titles of the tasks corresponding to the files in file_lst.
+    :param metric: The metric to plot. Should be one of the columns in the results dataframes.
+    :param output_file: Path to save the output figure (should end with .pdf or .svg or .png)
+    """
+    metric_clean = metric.upper()
+    fig, axes = plt.subplots(1, len(file_lst), figsize=(4 * len(file_lst), len(file_lst)), sharey=True)
+    for ind in range(len(file_lst)):
+        df = pd.read_pickle(file_lst[ind]).reset_index()
+        x_data = df[metric]
+        y_data = df['Model']
+        colors = [COLORS[model] for model in y_data]
+        ax = axes[ind]
+        ax.hlines(y=y_data, xmin=min(x_data) * 0.9, xmax=x_data, color='lightgray', linestyle='--', alpha=0.7)
+        ax.set_ylim(-0.5, 5 - 0.5)
+        # Draw the dots
+        ax.scatter(x_data, y_data, color=colors, s=120, zorder=3, linewidth=0.5)
+
+        ax.set_title(title_lst[ind], fontsize=14, pad=12)
+        ax.grid(axis='x', linestyle=':', alpha=0.5)
+
+    # Labels and layout
+    axes[0].set_ylabel('Model', fontsize=14)
+    axes[1].set_xlabel(metric_clean, fontsize=14)
+    plt.suptitle(f'Model Performance ({metric_clean}) Across Regression Tasks', fontsize=16, y=1.02)
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.78)
+
+    plt.savefig(output_file, dpi=300, bbox_inches="tight")
+    plt.close()
+
+
 def eval_model_on_test(model_path, tokenizer_file, dataset, output_file, device_num, metric='weighted', n_labels=2, is_regression=False, is_pairwise=False):
     f, axes = plt.subplots(1, 2, figsize=(10, 5))
     all_res = []
@@ -60,8 +95,13 @@ if __name__ == '__main__':
     parser.add_argument('--device', type=int, default=-1, help='compute device to use, -1 for cpu. default: -1')
     parser.add_argument('--is_pairwise', action='store_true', help='Choose this to evaluate a pairwise classification model. Default: False')
     parser.add_argument('--is_regression', action='store_true', help='Choose this to evaluate a regression model. Default: False')
+    parser.add_argument('--file_lst', nargs='*', default=[], help='List of paths to regression model result pickle files to plot cleveland regression plot from existing results')
+    parser.add_argument('--titles', nargs='*', default=[], help='List of tasks titles for the cleveland regression plot, should correspond to the order of file_lst')
     parser.set_defaults(is_pairwise=False)
     parser.set_defaults(is_regression=False)
     args = parser.parse_args()
 
-    eval_model_on_test(args.model_path, args.tokenizer_prefix, args.dataset, args.output_file, args.device, metric=args.metric, n_labels=args.n_labels, is_regression=args.is_regression, is_pairwise=args.is_pairwise)
+    if args.file_lst and args.titles:  # plotting cleveland regression plot from existing files
+        create_regression_cleveland_plot(args.file_lst, args.titles, args.metric, args.output_file)
+    else:
+        eval_model_on_test(args.model_path, args.tokenizer_prefix, args.dataset, args.output_file, args.device, metric=args.metric, n_labels=args.n_labels, is_regression=args.is_regression, is_pairwise=args.is_pairwise)

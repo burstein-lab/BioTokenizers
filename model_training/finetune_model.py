@@ -6,7 +6,8 @@ import datasets
 from pathlib import Path
 import pickle
 from data_processing.get_encoded_dataset import get_downstream_train_test, map_amino_acids
-from utilities import clear_cache, load_tokenizer, return_computed_metrics
+from utilities import clear_cache, load_tokenizer
+from evaluation.eval_utilities import return_all_eval_metrics_dict
 from transformers import TrainingArguments, Trainer, RobertaForSequenceClassification, RobertaForTokenClassification, RobertaConfig, DataCollatorWithPadding, DataCollatorForTokenClassification, EsmForSequenceClassification, EsmTokenizer
 from datasets import concatenate_datasets
 
@@ -19,7 +20,7 @@ MAIN_DIR = Path(__name__).parent.absolute()
 def compute_metrics(pred):
     labels = pred.label_ids
     probs = torch.nn.functional.softmax(torch.from_numpy(pred.predictions), dim=-1)
-    return return_computed_metrics(probs, labels)
+    return return_all_eval_metrics_dict(probs, labels)
 
 
 def tokenize_pair(sample, tokenizer, max_len):

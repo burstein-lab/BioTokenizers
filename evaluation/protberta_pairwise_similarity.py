@@ -7,7 +7,7 @@ from torch.nn.functional import cosine_similarity
 from datasets import load_dataset
 from data_processing.get_encoded_dataset import map_amino_acids
 from utilities import load_tokenizer, load_model
-from eval_utilities import calc_metrics, return_computed_metrics, plot_all_metric_results
+from eval_utilities import calc_metrics, return_all_eval_metrics_dict, plot_all_metric_results
 from model_training.roberta_with_advanced_pooling import mean_pooling
 from pathlib import Path
 
@@ -52,7 +52,7 @@ def get_similarity(batch, model, device):
 def get_all_metrics(df):
     probs = torch.Tensor(df['similarity'].astype('float64').values)
     probs = torch.cat([1 - probs.unsqueeze(1), probs.unsqueeze(1)], dim=1)
-    res = return_computed_metrics(probs, df['label'].astype('int32').values)
+    res = return_all_eval_metrics_dict(probs, df['label'].astype('int32').values)
     rocauc_score, prauc_score, chosen_precision, chosen_recall, chosen_f1, mcc_prec, mcc_rec, mcc = calc_metrics(df['label'].tolist(), probs[:, 1].tolist())
     res.update({'auroc': rocauc_score, 'aupr': prauc_score, 'Precision of Best F1': chosen_precision,
                 'Recall of Best F1': chosen_recall, 'Best F1': chosen_f1, 'Precision of Best MCC': mcc_prec,

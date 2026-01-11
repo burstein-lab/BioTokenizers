@@ -50,7 +50,7 @@ def calc_metrics(labels, scores, n_labels=2, metric='weighted'):
     return rocauc_score, prauc_score, precision[best_f1_ind], recall[best_f1_ind], f1[best_f1_ind], precision[best_mcc_ind], recall[best_mcc_ind], mcc[best_mcc_ind]
 
 
-def return_computed_metrics(probs, labels): # TODO change name to return_all_eval_metrics_dict
+def return_all_eval_metrics_dict(probs, labels):
     preds = torch.argmax(probs, dim=1).cpu().numpy()
     preds = np.asarray(preds).ravel()
     labels = np.array(labels).ravel()
@@ -94,7 +94,7 @@ def plot_all_metric_results(df, output_path, metric='weighted', colors=COLORS):
 
 def get_results_dict(scores, labels, n_labels=2, metric='weighted', is_probs=False):
     probs = scores if is_probs else torch.nn.functional.softmax(scores.float(), dim=-1)
-    res_dict = return_computed_metrics(probs, labels)
+    res_dict = return_all_eval_metrics_dict(probs, labels)
     rocauc_score, prauc_score, chosen_precision, chosen_recall, chosen_f1, mcc_prec, mcc_rec, mcc = calc_metrics(labels, probs[:, 1] if n_labels == 2 else probs, n_labels, metric=metric)
     res_dict.update({'AUROC': rocauc_score, 'AUPR': prauc_score, 'Precision of Best F1': chosen_precision,
                 'Recall of Best F1': chosen_recall, 'Best F1': chosen_f1, 'Precision of Best MCC': mcc_prec,

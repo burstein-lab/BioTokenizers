@@ -13,7 +13,7 @@ COLORS_FULL = {'ProtBERTa_2': '#E6AA61', 'ProtBERTa_4': '#e67961', 'ProtBERTa_8'
 CODING_LABELS = [f"ProtBERTa_{c}" for c in [2, 4, 8, 12, 20]]
 
 
-def plot_sentence_len_dist(data, outdir, quantile=0.95):
+def plot_sentence_len_dist(data, outdir, quantile=0.99):
     for aa_mapping in [2, 4, 8, 12, 20]:
         lens = data[f'ProtBERTa_{aa_mapping}']['seq_lens']
         size = np.quantile(lens, quantile)
@@ -40,7 +40,7 @@ def plot_avg_token_len_violin(data, outdir):
 
 
 def plot_sentence_len_violin(data, outdir, quantile=0.99):
-    d = {f'ProtBERTa_{aa_mapping}': np.array(data[f'ProtBERTa{aa_mapping}']['seq_lens']) for aa_mapping in [2, 4, 8, 12, 20]}
+    d = {f'ProtBERTa_{aa_mapping}': np.array(data[f'ProtBERTa_{aa_mapping}']['seq_lens']) for aa_mapping in [2, 4, 8, 12, 20]}
     d = {k: v[v <= np.quantile(v, quantile)] for k, v in d.items()}
 
     sns.violinplot(d, palette=COLORS_FULL, fill=True)
@@ -53,7 +53,7 @@ def plot_sentence_len_violin(data, outdir, quantile=0.99):
     plt.close()
 
 
-def plot_token_len_dist(data, outdir, quantile=0.99):
+def plot_token_len_dist(data, outdir, quantile=0.999):
     for aa_mapping in [2, 4, 8, 12, 20]:
         lens = data[f'ProtBERTa_{aa_mapping}']['all_token_lens']
         size = np.quantile(lens, quantile)
@@ -99,7 +99,7 @@ def get_tokenizer_properties(tokenizer_prefix, test_dataset, output_dir, col='pr
                             'Sentence Length': f"{round(np.mean(test['sentence_length']), 2)}±{round(np.std(test['sentence_length']), 2)}"})
 
     df = pd.DataFrame(len_data)
-    df.to_csv(os.path.join(output_dir, 'sentence_and_token_lens.tsv'), sep='\t')
+    df.to_csv(os.path.join(output_dir, 'sentence_and_token_lens.tsv'), sep='\t', index=False)
 
     with open(os.path.join(output_dir, 'all_tokenizer_properties.pkl'), 'wb') as fout:
         pickle.dump(all_data, fout)

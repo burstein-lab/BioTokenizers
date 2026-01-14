@@ -11,7 +11,7 @@ import torch
 import torch.nn.functional as F
 from typing import Literal, Optional
 from collections import Counter
-from eval_utilities import COLORS, plot_all_metric_results, get_results_dict, plot_binary_AUPR_AUROC, finish_AUPR_AUROC_figure
+from evaluation.eval_utilities import COLORS, plot_all_metric_results, get_results_dict, plot_binary_AUPR_AUROC, finish_AUPR_AUROC_figure
 from utilities import create_model_embeddings
 
 
@@ -21,11 +21,10 @@ CACHE_DIR = os.path.join(Path(__name__).parent.absolute(), "cache")
 
 class EmbeddingClassifier:
     """
-    Classifier for embeddings using either KNN or centroid-based methods.
+    Classifier for embeddings using KNN.
     Written with the help of Claude.ai
 
     Args:
-        method: Classification method - 'knn' or 'centroid'
         k: Number of neighbors for KNN (default: 5)
         distance_metric: 'cosine' or 'euclidean' (default: 'cosine')
         chunk_size: Number of queries to process at once (default: 100)
@@ -33,12 +32,10 @@ class EmbeddingClassifier:
 
     def __init__(
             self,
-            method: Literal['knn', 'centroid'] = 'knn',
             k: int = 5,
             distance_metric: Literal['cosine', 'euclidean'] = 'cosine',
             chunk_size: int = 100
     ):
-        self.method = method
         self.k = k
         self.distance_metric = distance_metric
         self.chunk_size = chunk_size
@@ -59,19 +56,6 @@ class EmbeddingClassifier:
         self.train_labels = labels
         self.classes = torch.unique(labels)
 
-        # Precompute centroids if using centroid method
-        if self.method == 'centroid':
-            self.centroids = self._compute_centroids()
-
-    def _compute_centroids(self) -> torch.Tensor:
-        """Compute the centroid (mean) embedding for each class."""
-        centroids = []
-        for cls in self.classes:
-            mask = self.train_labels == cls
-            class_embeddings = self.train_embeddings[mask]
-            centroid = class_embeddings.mean(dim=0)
-            centroids.append(centroid)
-        return torch.stack(centroids)
 
     def _compute_distances(
             self,
@@ -128,13 +112,6 @@ class EmbeddingClassifier:
         Returns:
             Predicted labels of shape (n_samples,)
         """
-        if self.method == 'knn':
-            return self._predict_knn(embeddings)
-        elif self.method == 'centroid':
-            return self._predict_centroid(embeddings)
-
-    def _predict_knn(self, embeddings: torch.Tensor) -> torch.Tensor:
-        """Predict using K-Nearest Neighbors."""
         distances = self._compute_distances(embeddings, self.train_embeddings)
 
         # Get k nearest neighbors
@@ -152,18 +129,6 @@ class EmbeddingClassifier:
 
         return torch.tensor(predictions, device=embeddings.device)
 
-    def _predict_centroid(self, embeddings: torch.Tensor) -> torch.Tensor:
-        """Predict using nearest centroid."""
-        distances = self._compute_distances(embeddings, self.centroids)
-
-        # Get index of nearest centroid
-        nearest_centroid_idx = torch.argmin(distances, dim=1)
-
-        # Map indices to class labels
-        predictions = self.classes[nearest_centroid_idx]
-
-        return predictions
-
     def predict_proba(self, embeddings: torch.Tensor) -> torch.Tensor:
         """
         Predict class probabilities based on distances.
@@ -174,13 +139,6 @@ class EmbeddingClassifier:
         Returns:
             Probability matrix of shape (n_samples, n_classes)
         """
-        if self.method == 'knn':
-            return self._predict_proba_knn(embeddings)
-        elif self.method == 'centroid':
-            return self._predict_proba_centroid(embeddings)
-
-    def _predict_proba_knn(self, embeddings: torch.Tensor) -> torch.Tensor:
-        """Get probability estimates from KNN."""
         distances = self._compute_distances(embeddings, self.train_embeddings)
         _, indices = torch.topk(distances, k=self.k, largest=False, dim=1)
         neighbor_labels = self.train_labels[indices]
@@ -193,15 +151,6 @@ class EmbeddingClassifier:
         for i in range(n_samples):
             for j, cls in enumerate(self.classes):
                 probs[i, j] = (neighbor_labels[i] == cls).float().mean()
-
-        return probs
-
-    def _predict_proba_centroid(self, embeddings: torch.Tensor) -> torch.Tensor:
-        """Get probability estimates from centroid distances."""
-        distances = self._compute_distances(embeddings, self.centroids)
-
-        # Convert distances to probabilities using softmax over negative distances
-        probs = F.softmax(-distances, dim=1)
 
         return probs
 
@@ -233,46 +182,35 @@ def get_zero_shot_performance_per_model(data_dir, emb_dir, model_path, tokenizer
     model_name = f'ProtBERTa_{aa_mapping}'
     train_embeddings, train_labels, test_embeddings, test_labels = get_train_test_embeddings(data_dir, emb_dir, tokenizer_path, model_path, task, aa_mapping, proc=proc, col=col, max_length=max_length, device=device, batch_size=batch_size)
 
-    all_res = {}
-    for method in ['knn', 'centroid']:
-        # Initialize and fit classifier
-        classifier = EmbeddingClassifier(method=method, k=k, distance_metric=distance_metric)
-        classifier.fit(train_embeddings,  train_labels)
+    classifier = EmbeddingClassifier(k=k, distance_metric=distance_metric)
+    classifier.fit(train_embeddings,  train_labels)
 
-        # Predict on test set
-        probs = classifier.predict_proba(test_embeddings)
-        res = get_results_dict(probs, test_labels, n_labels=len(classifier.classes), is_probs=True)
-        res['Model'] = model_name
-        res['probs'] = probs
-        all_res[method] = res
+    # Predict on test set
+    probs = classifier.predict_proba(test_embeddings)
+    res = get_results_dict(probs, test_labels, n_labels=len(classifier.classes), is_probs=True)
+    res['Model'] = model_name
+    res['probs'] = probs
 
-    return all_res['knn'], all_res['centroid'], test_labels
+    return res, test_labels
 
 
 def get_zero_shot_performance(data_dir, emb_dir, out_dir, model_path, tokenizer_prefix, task, k=5, distance_metric='cosine', proc=10, metric='weighted', col='prot', max_length=1026, device=-1, batch_size=32):
-    all_res = defaultdict(list)
+    all_res = []
     f_knn, axes_knn = plt.subplots(1, 2, figsize=(10, 5))
-    f_cent, axes_cent = plt.subplots(1, 2, figsize=(10, 5))
     for aa_mapping in AA_MAPPINGS:
         model_name = f'ProtBERTa_{aa_mapping}'
         print(f'Calculating zero-shot performance for {model_name}', flush=True)
         model_path = re.sub('ProtBERTa_(20|12|4|8|2)', f'ProtBERTa_{aa_mapping}', model_path)
         tokenizer_path = tokenizer_prefix + str(aa_mapping)
-        res_knn, res_centroid, labels = get_zero_shot_performance_per_model(data_dir, emb_dir, model_path, tokenizer_path, aa_mapping, task, k=k, distance_metric=distance_metric, proc=proc, col=col, max_length=max_length, device=device, batch_size=batch_size)
+        res_knn, labels = get_zero_shot_performance_per_model(data_dir, emb_dir, model_path, tokenizer_path, aa_mapping, task, k=k, distance_metric=distance_metric, proc=proc, col=col, max_length=max_length, device=device, batch_size=batch_size)
         plot_binary_AUPR_AUROC(labels, res_knn.pop('probs'), f'ProtBERTa_{aa_mapping}', COLORS[f'ProtBERTa_{aa_mapping}'], axes_knn)
-        plot_binary_AUPR_AUROC(labels, res_centroid.pop('probs'), f'ProtBERTa_{aa_mapping}', COLORS[f'ProtBERTa_{aa_mapping}'], axes_cent)
-        all_res['knn'].append(res_knn)
-        all_res['centroid'].append(res_centroid)
+        all_res.append(res_knn)
 
     finish_AUPR_AUROC_figure(f_knn, axes_knn, os.path.join(out_dir, f'{task}_ProtBERTa_knn_{k}_zeroshot_AUROC_AUPR.svg'))
-    finish_AUPR_AUROC_figure(f_cent, axes_cent, os.path.join(out_dir, f'{task}_ProtBERTa_centroid_zeroshot_AUROC_AUPR.svg'))
-
-    for method, res in all_res.items():
-        method_str = method if method == 'centroid' else f'knn_{k}'
-        output_file = os.path.join(out_dir, f'{task}_ProtBERTa_{method_str}_zeroshot_res_{metric}.svg')
-        df = pd.DataFrame(res).set_index('Model').dropna(how='all', axis=1)  # remove columns with all NaN values
-        df.to_pickle(output_file.replace('.svg', '.pkl'))
-        plot_all_metric_results(df, output_file, metric, colors=COLORS)
+    output_file = os.path.join(out_dir, f'{task}_ProtBERTa_knn_{k}_zeroshot_res_{metric}.svg')
+    df = pd.DataFrame(all_res).set_index('Model').dropna(how='all', axis=1)  # remove columns with all NaN values
+    df.to_pickle(output_file.replace('.svg', '.pkl'))
+    plot_all_metric_results(df, output_file, metric, colors=COLORS)
 
 
 if __name__ == '__main__':

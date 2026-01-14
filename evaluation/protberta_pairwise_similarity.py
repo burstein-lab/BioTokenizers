@@ -7,7 +7,7 @@ from torch.nn.functional import cosine_similarity
 from datasets import load_dataset
 from data_processing.get_encoded_dataset import map_amino_acids
 from utilities import load_tokenizer, load_model
-from eval_utilities import calc_metrics, return_all_eval_metrics_dict, plot_all_metric_results
+from evaluation.eval_utilities import calc_metrics, return_all_eval_metrics_dict, plot_all_metric_results
 from model_training.roberta_with_advanced_pooling import mean_pooling
 from pathlib import Path
 

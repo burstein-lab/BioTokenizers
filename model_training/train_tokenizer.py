@@ -33,11 +33,11 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser('Training a tokenizer from scratch.')
     parser.add_argument('--dataset_dir', help='path to dir with corpus files')
-    parser.add_argument('--output_file', help='Path to output file')
+    parser.add_argument('--output_prefix', help='Prefix to output file, should include full path')
     parser.add_argument('--col_name', '-col', type=str, default='prot', help='Column name for protein sequences. default: prot')
-    parser.add_argument('--vocab_size', '-vc', type=int, default=10000, help='size of vocabulary')
+    parser.add_argument('--vocab_size', '-vc', type=int, default=5000, help='size of vocabulary')
     parser.add_argument('--aa_mapping', '-am', type=int, default=20, help='How many options to encode amino acids. default: 20 (regular coding)')
     parser.add_argument('--min_freq', '-mf', type=int, default=2, help='How many times a token should be observed to be kept.default: 2')
     args = parser.parse_args()
 
-    train_tokenizer(args.dataset_dir, args.col_name, args.vocab_size, args.min_freq, args.output_file, args.aa_mapping)
+    train_tokenizer(args.dataset_dir, args.col_name, args.vocab_size, args.min_freq, args.output_prefix, args.aa_mapping)

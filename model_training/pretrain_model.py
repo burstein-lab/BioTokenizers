@@ -5,7 +5,7 @@ from pathlib import Path
 from transformers import RobertaConfig, RobertaForMaskedLM, DataCollatorForLanguageModeling, TrainingArguments, Trainer
 from data_processing.get_encoded_dataset import get_train_test
 from utilities import clear_cache, load_tokenizer
-from train_tokenizer import train_tokenizer
+from model_training.train_tokenizer import train_tokenizer
 from datasets import load_from_disk
 
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
@@ -33,7 +33,7 @@ def main(args):
         train_dataset = load_from_disk(os.path.join(args.dataset,  f'ProtBerta_{args.aa_mapping}', 'train'))
         test_dataset = load_from_disk(os.path.join(args.dataset,  f'ProtBerta_{args.aa_mapping}', 'eval'))
     else:
-        train_dataset, test_dataset = get_train_test(args.dataset, mapping_code=args.aa_mapping, train_file_num=train_file_num, proc=args.ncpu, is_eval=True, prot_sample=PROT_SAMPLE)
+        train_dataset, test_dataset = get_train_test(args.dataset, mapping_code=args.aa_mapping, train_file_num=train_file_num, proc=args.ncpu, is_eval=True, prot_sample=PROT_SAMPLE, multi_dir=not args.same_dir)
     print('got dataset')
 
     # configure model output path
@@ -62,8 +62,7 @@ def main(args):
     clear_cache()
 
     # initialize the model with the config
-    n_hidden = 8 if args.lang == 'prot' else 8
-    model_config = RobertaConfig(vocab_size=vocab_size, max_position_embeddings=args.max_length, num_hidden_layers=n_hidden)
+    model_config = RobertaConfig(vocab_size=vocab_size, max_position_embeddings=args.max_length, num_hidden_layers=args.n_hidden)
     if args.model:
         model = RobertaForMaskedLM.from_pretrained(args.model).to(device)
     else:
@@ -79,7 +78,7 @@ def main(args):
     training_args = TrainingArguments(
         output_dir=model_path,
         fp16=torch.cuda.is_available(),
-        evaluation_strategy="steps",
+        eval_strategy="steps",
         overwrite_output_dir=True,
         num_train_epochs=args.epochs,
         auto_find_batch_size=False,
@@ -116,18 +115,20 @@ if __name__ == '__main__':
     parser.add_argument('--aa_mapping', '-am', type=int, default=20, help='How many options to encode amino acids. default: 20 (regular coding)')
     parser.add_argument('--col_name', '-col', type=str, default='prot', help='Column name for protein sequences. default: prot')
     parser.add_argument('--pre_tokenized', action='store_true', help='Choose this if the dataset is already tokenized. Default: False')
+    parser.add_argument('--same_dir', action='store_true', help='Choose this if all the files in the dataset are in the same directory, and not in different sub-directories. Default: False')
 
     # training tokenizer
     parser.add_argument('--tokenizer_dataset', help='path to a directory with dataset to train the the tokenizer')
-    parser.add_argument('--vocab-size', type=int, default=38_000, help='vocabulary size')
-    parser.add_argument('--min_freq', '-mf', type=int, default=75, help='How many times a token should be observed to be kept.default: 75')
+    parser.add_argument('--vocab-size', type=int, default=5000, help='vocabulary size')
+    parser.add_argument('--min_freq', '-mf', type=int, default=2, help='How many times a token should be observed to be kept.default: 2')
     parser.add_argument('--tokenizer_file', help='path to tokenizer file, saves into it if doesnt exist')
 
-    parser.add_argument('--model-path', default=os.path.join(MAIN_DIR, 'models/'), help='path to a directory to save model outputs')
+    parser.add_argument('--model-path', default=os.path.join(MAIN_DIR, 'models'), help='path to a directory to save model outputs')
     parser.add_argument('--model', default='', help='path to existing model we want to load. If empty, we initialize it. default: ''')
     parser.add_argument('--save-prefix', default='pretrained-ProtBERTa', help='path prefix for saving models')
     parser.add_argument('--max-length', type=int, default=1026, help='maximal sequence length')
     parser.add_argument('-p', type=float, default=0.15, help='masking rate')
+    parser.add_argument('--n_hidden', type=int, default=8, help='number of transformer layers')
     parser.add_argument('--ncpu', type=int, default=10, help='number of cpus')
     parser.add_argument('--debug', action='store_true')
 
@@ -140,5 +141,6 @@ if __name__ == '__main__':
     parser.add_argument('--device', type=int, default=-1, help='compute device to use, -1 for cpu. default: -1')
     parser.set_defaults(debug=False)
     parser.set_defaults(pre_tokenized=False)
+    parser.set_defaults(same_dir=False)
     args = parser.parse_args()
     main(args)

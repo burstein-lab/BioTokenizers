@@ -40,10 +40,10 @@ def get_tokenizer_dataset(data_dir, mapping_code=20, file_num=0):
     return dataset
 
 
-def get_train_test(data_dir, mapping_code=20, train_file_num=0, proc=10, is_eval=False, prot_sample=0):
+def get_train_test(data_dir, mapping_code=20, train_file_num=0, proc=10, is_eval=False, prot_sample=0, multi_dir=False):
     test_str = "eval" if is_eval else 'test'
-    train_pattern = f"{data_dir}/train/*.csv"
-    test_pattern = f"{data_dir}/{test_str}/*.csv"
+    train_pattern = os.path.join(data_dir, 'train', '*' if multi_dir else '', '*.csv')
+    test_pattern = os.path.join(data_dir, test_str, '*' if multi_dir and not is_eval else '', '*.csv')
     file_mapping = {'train': glob.glob(train_pattern), "test": glob.glob(test_pattern)}
     if train_file_num > 0:
         file_mapping['train'], file_mapping['test'] = file_mapping['train'][:train_file_num], file_mapping['test'][:int(train_file_num/4)]
@@ -51,7 +51,7 @@ def get_train_test(data_dir, mapping_code=20, train_file_num=0, proc=10, is_eval
     dataset = load_dataset('csv', data_files=file_mapping, cache_dir=CACHE_DIR)
     train, test = dataset['train'], dataset['test']
 
-    train = train.shuffle(seed=42).select(range(prot_sample)) if prot_sample > 0 else train
+    train = train.shuffle(seed=42).select(range(prot_sample)) if prot_sample > 0 and len(train) > prot_sample else train
     if mapping_code != 20:
         train = train.map(lambda x: map_amino_acids(x, mapping_code), num_proc=proc)
         test = test.map(lambda x: map_amino_acids(x, mapping_code), num_proc=proc)

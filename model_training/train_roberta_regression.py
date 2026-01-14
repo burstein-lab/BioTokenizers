@@ -2,7 +2,7 @@
 
 import torch
 from transformers import Trainer, TrainingArguments, DataCollatorWithPadding, PreTrainedModel, AutoConfig
-from roberta_regression_model import RobertaForRegression
+from model_training.roberta_regression_model import RobertaForRegression
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import os
 import numpy as np

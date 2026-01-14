@@ -1,4 +1,4 @@
-from roberta_with_advanced_pooling import RobertaWithAdvancedPooling
+from model_training.roberta_with_advanced_pooling import RobertaWithAdvancedPooling
 import torch
 import torch.nn as nn
 from transformers import PreTrainedModel, AutoConfig

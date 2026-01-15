@@ -95,17 +95,17 @@ def plot_compression_performance_tradeoff(df, output_dir, task):
         plt.close()
 
 
-def get_model_success(n_labels, probs, test_dataset, res_dict):
+def get_model_success(n_labels, probs, labels, res_dict):
     if n_labels == 2:
-        precision, recall, thresholds = precision_recall_curve(test_dataset.to_pandas()['label'].tolist(), probs)
+        precision, recall, thresholds = precision_recall_curve(labels, probs)
         f1 = calc_f1_vec(precision, recall)
         thresh = thresholds[np.argmax(f1)]
         preds = (probs >= thresh).astype(int)
-        res = preds == np.array(test_dataset.to_pandas()['label'])
+        res = preds == np.array(labels)
         res_dict['success'] = res
     else:
-        preds = torch.argmax(probs, dim=1).cpu().numpy()
-        res = preds == np.array(test_dataset['label'])
+        preds = torch.argmax(torch.Tensor(probs), dim=1).cpu().numpy()
+        res = preds == np.array(labels)
         res_dict['success'] = res
 
 
@@ -151,35 +151,37 @@ def finetuned_models_compression_tradeoff(model_path, tokenizer_file, dataset, t
 
         compression = baseline_len / avg_len
         model_res = run_model_in_batches(model, tokenizer, test_dataset, device, batch_size=batch_size)
+        labels = test_dataset.to_pandas()['label'].tolist()
         if is_regression:
-            res_dict = compute_metrics_regression((model_res, test_dataset.to_pandas()['label'].tolist()))
+            res_dict = compute_metrics_regression((model_res, labels))
         else:
-            res_dict = get_results_dict(model_res, test_dataset.to_pandas()['label'].tolist(), n_labels=n_labels)
-            probs = torch.nn.functional.softmax(model_res.float(), dim=-1)[:, 1].cpu().numpy()
-            get_model_success(n_labels, probs, test_dataset, res_dict)
+            res_dict = get_results_dict(model_res, labels, n_labels=n_labels)
+            probs = torch.nn.functional.softmax(model_res.float(), dim=-1).cpu().numpy()
+            probs = probs[:, 1] if n_labels == 2 else probs
             print(res_dict)
+            get_model_success(n_labels, probs, labels, res_dict)
 
         res_dict['Model'] = f'ProtBERTa_{aa_mapping}'
         res_dict['Compression_Ratio'] = compression
         all_res.append(res_dict)
 
-        df = pd.DataFrame(all_res).dropna(how='all', axis=1)  # remove columns with all NaN values
-        plot_compression_performance_tradeoff(df, output_dir, task)
-        if not is_regression:
-            run_mcnemar_test(df)
-            df = df.drop(columns=['success'])
+    df = pd.DataFrame(all_res).dropna(how='all', axis=1)  # remove columns with all NaN values
+    plot_compression_performance_tradeoff(df, output_dir, task)
+    if not is_regression:
+        run_mcnemar_test(df)
+        df = df.drop(columns=['success'])
 
-        df.to_pickle(os.path.join(output_dir, f'{task}_compression_performance_tradeoff.pkl'))
+    df.to_pickle(os.path.join(output_dir, f'{task}_compression_performance_tradeoff.pkl'))
 
 
-def run_zeroshot_classification_compression_tradeoff(model_path, tokenizer_file, dataset, emb_dir, task, output_dir, n_labels=2, method='knn', k=5, distance_metric='cosine', proc=10, col='prot', max_length=1026, device=-1, batch_size=32):
+def run_zeroshot_classification_compression_tradeoff(model_path, tokenizer_file, dataset, emb_dir, task, output_dir, k=5, distance_metric='cosine', proc=10, col='prot', max_length=1026, device=-1, batch_size=32):
     all_res = []
     baseline_len = 0
     for aa_mapping in [20, 12, 8, 4, 2]:
         clear_cache()
         print(f'aa_mapping: {aa_mapping}')
         tokenizer_path = tokenizer_file + str(aa_mapping)
-        tokenizer = load_tokenizer(tokenizer_path, max_length=1026)
+        tokenizer = load_tokenizer(tokenizer_path, max_length=max_length)
         train_embeddings, train_labels, test_embeddings, test_labels = get_train_test_embeddings(dataset, emb_dir, tokenizer_path, model_path, task, aa_mapping, proc=proc, col=col, max_length=max_length, device=device, batch_size=batch_size)
         _, test_dataset, _ = get_downstream_train_test(dataset, mapping_code=aa_mapping, proc=proc)
 
@@ -189,14 +191,15 @@ def run_zeroshot_classification_compression_tradeoff(model_path, tokenizer_file,
             baseline_len = avg_len
 
         compression = baseline_len / avg_len
-        classifier = EmbeddingClassifier(method=method, k=k, distance_metric=distance_metric)
+        classifier = EmbeddingClassifier(k=k, distance_metric=distance_metric, chunk_size=batch_size)
         classifier.fit(train_embeddings, train_labels)
+        n_labels = len(classifier.classes)
 
-        probs = classifier.predict_proba(test_embeddings)
-        res_dict = get_results_dict(probs, test_labels, n_labels=len(classifier.classes), is_probs=True)
-        probs = probs.cpu().numpy()[:, 1]
-        get_model_success(n_labels, probs, test_dataset, res_dict)
+        probs = classifier.predict_proba(test_embeddings).cpu()
+        res_dict = get_results_dict(probs, test_labels, n_labels=n_labels, is_probs=True)
+        probs = probs[:, 1] if n_labels == 2 else probs
         print(res_dict)
+        get_model_success(n_labels, probs.numpy(), test_labels, res_dict)
         res_dict['Model'] = f'ProtBERTa_{aa_mapping}'
         res_dict['Compression_Ratio'] = compression
         all_res.append(res_dict)
@@ -227,7 +230,7 @@ def run_pairwise_zeroshot_compression_tradeoff(model_path, tokenizer_prefix, dat
         compression = baseline_len / avg_len
 
         probs = df['similarity'].values
-        get_model_success(2, probs, dataset, res_dict)
+        get_model_success(2, probs, df['label'].tolist(), res_dict)
         print(res_dict)
         res_dict['Model'] = f'ProtBERTa_{aa_mapping}'
         res_dict['Compression_Ratio'] = compression
@@ -251,31 +254,28 @@ if __name__ == '__main__':
     parser.add_argument('--max_length', type=int, default=1026, help='maximal sequence length')
     parser.add_argument('--ncpu', type=int, default=10, help='number of cpus')
     parser.add_argument('-b', '--batch_size', type=int, default=64, help='Batch size. Default: 64')
-    parser.add_argument('--is_pairwise', action='store_true', help='Choose this to evaluate a pairwise classification model. Default: False')
-    parser.add_argument('--is_regression', action='store_true', help='Choose this to evaluate a regression model. Default: False')
     parser.add_argument('--zeroshot', action='store_true', help='Choose this to evaluate Zeroshot classification. Default: False')
-    parser.add_argument('--pairwise', action='store_true', help='Choose this to evaluate Zeroshot pairwise classification. Only relevant if zeroshot is True. Default: False')
+    parser.add_argument('--is_pairwise', action='store_true', help='Choose this to evaluate a pairwise classification model. If zeroshot is true, zeroshot pairwise classification is evaluated. Default: False')
+    parser.add_argument('--is_regression', action='store_true', help='Choose this to evaluate a regression model. Default: False')
     parser.add_argument('--file_lst', nargs='*', default=[], help='List of paths to runtime result pickle files to plot subplots from existing results')
     parser.add_argument('--tasks', nargs='+', help='List of tasks names to use. If file_lst, it should match the order of file_lst. A single task name otherwise.')
     parser.add_argument('--metric', type=str, help='Metric to plot when plotting multiple tasks. Default: Best F1', default='Best F1')
     parser.add_argument('--k', type=int, default=5, help='Number of neighbors for KNN for zeroshot classification (default: 5)')
     parser.add_argument('--distance_metric', help='Distance metric to use (cosine or euclidean) for zeroshot classification. default: cosine', default='cosine')
-    parser.add_argument('--clf_method', help='Zeroshot classification method, either knn or centroid. default: knn', default='knn')
     parser.add_argument('--emb_dir', help='path to a directory to save pre-trained embeddings files for zeroshot classification')
+    parser.set_defaults(zeroshot=False)
     parser.set_defaults(is_pairwise=False)
     parser.set_defaults(is_regression=False)
-    parser.set_defaults(zeroshot=False)
-    parser.set_defaults(pairwise=False)
     args = parser.parse_args()
 
     if args.file_lst:
         plot_multi_performance_compression_tradeoff(args.file_lst, args.tasks, args.out_dir, args.metric, is_regression=args.is_regression)
     elif args.zeroshot:
-        if args.pairwise:
+        if args.is_pairwise:
             run_pairwise_zeroshot_compression_tradeoff(args.model_path, args.tokenizer_prefix, args.dataset, args.out_dir, args.ncpu, device=args.device, batch_size=args.batch_size, max_length=args.max_length)
         else:
             run_zeroshot_classification_compression_tradeoff(args.model_path, args.tokenizer_prefix, args.dataset, args.emb_dir,
-                                                                 args.tasks[0], args.out_dir, n_labels=args.n_labels, method=args.clf_method, k=args.k,
+                                                                 args.tasks[0], args.out_dir, k=args.k,
                                                                  distance_metric=args.distance_metric, proc=args.ncpu, col=args.col_name,
                                                                  max_length=args.max_length, device=args.device, batch_size=args.batch_size)
     else:

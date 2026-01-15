@@ -33,10 +33,10 @@ def calc_f1_vec(prec, recall):
 
 def calc_metrics(labels, scores, n_labels=2, metric='weighted'):
     if n_labels == 2:
+        scores = np.array(scores)
         precision, recall, thresholds = precision_recall_curve(labels, scores)
         f1 = calc_f1_vec(precision, recall)
         best_f1_ind = np.argmax(f1)
-        scores = np.array(scores)
         mcc = [calc_mcc(labels, scores, t) for t in thresholds]
         best_mcc_ind = np.argmax(mcc)
         rocauc_score = roc_auc_score(labels, scores)

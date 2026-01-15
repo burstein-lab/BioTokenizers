@@ -29,7 +29,8 @@ def get_token_ids(sentence, tokenizer, max_len=1024):
 def get_similarity(batch, model, device):
     att1, att2 = batch['attention_mask_1'].to(device), batch['attention_mask_2'].to(device)
     try:
-        output1 = model(input_ids=batch['input_ids_1'].to(device), attention_mask=att1)
+        with torch.no_grad():
+            output1 = model(input_ids=batch['input_ids_1'].to(device), attention_mask=att1)
     except Exception:
         print("input_ids_1:", batch['input_ids_1'].shape, "max id:", batch['input_ids_1'].max().item())
         print("att1:", batch['attention_mask_1'].shape)
@@ -71,7 +72,7 @@ def get_pairwise_similarity(dataset, model_path, tokenizer_file, aa_mapping, pro
     dataset.set_format(type="torch", columns=['input_ids_1', 'input_ids_2', 'attention_mask_1', 'attention_mask_2'])
 
     model, device = load_model(model_path, device_num)
-    dataset = dataset.map(lambda x: get_similarity(x, model, device), batched=True, num_proc=1, batch_size=batch_size)
+    dataset = dataset.map(lambda x: get_similarity(x, model, device), batched=True, batch_size=batch_size)
 
     df = dataset.to_pandas()
     df['similarity'] = df['similarity'].apply(lambda x: x if x <= 1.0 else 1.0)  # floating point errors

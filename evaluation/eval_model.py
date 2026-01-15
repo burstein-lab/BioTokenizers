@@ -6,7 +6,7 @@ from utilities import load_model_and_tokenizer, clear_cache, run_model_in_batche
 from data_processing.get_encoded_dataset import get_downstream_train_test
 from model_training.finetune_model import prepare_pairwise_dataset
 from model_training.train_roberta_regression import compute_metrics as compute_metrics_regression
-from eval_utilities import plot_all_metric_results, COLORS, get_results_dict, plot_binary_AUPR_AUROC, finish_AUPR_AUROC_figure
+from evaluation.eval_utilities import plot_all_metric_results, COLORS, get_results_dict, plot_binary_AUPR_AUROC, finish_AUPR_AUROC_figure
 import torch
 torch.backends.cudnn.benchmark = True
 
@@ -66,15 +66,16 @@ def eval_model_on_test(model_path, tokenizer_file, dataset, output_file, device_
             res_dict = compute_metrics_regression((model_res, test_dataset.to_pandas()['label'].tolist()))
         else:
             res_dict = get_results_dict(model_res, test_dataset.to_pandas()['label'].tolist(), n_labels=n_labels, metric=metric)
-            test_dataset.set_format(type="numpy", columns=['label'])
-            sm = Softmax(dim=1)
-            probs = sm(model_res).numpy()
-            plot_binary_AUPR_AUROC(test_dataset['label'], probs, f'ProtBERTa_{aa_mapping}', COLORS[f'ProtBERTa_{aa_mapping}'], axes)
+            if n_labels == 2:
+                test_dataset.set_format(type="numpy", columns=['label'])
+                sm = Softmax(dim=1)
+                probs = sm(model_res).numpy()
+                plot_binary_AUPR_AUROC(test_dataset['label'], probs, f'ProtBERTa_{aa_mapping}', COLORS[f'ProtBERTa_{aa_mapping}'], axes)
         print(res_dict)
         res_dict['Model'] = f'ProtBERTa_{aa_mapping}'
         all_res.append(res_dict)
 
-    if not is_regression:
+    if not is_regression and n_labels == 2:
         auroc_aupr_file = output_file.replace('.pdf', '_AUPR_AUROC.pdf').replace('.svg', '_AUPR_AUROC.svg').replace('.png', '_AUPR_AUROC.png')
         finish_AUPR_AUROC_figure(f, axes, auroc_aupr_file)
 

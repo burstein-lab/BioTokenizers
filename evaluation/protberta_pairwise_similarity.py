@@ -15,7 +15,7 @@ AA_MAPPINGS = [2, 4, 8, 12, 20]
 DIR_PATH = Path(__name__).parent.absolute()
 
 
-def get_token_ids(sentence, tokenizer, max_len=1026):
+def get_token_ids(sentence, tokenizer, max_len=1024):
     tok_res_1 = tokenizer(sentence['prot_1'], truncation=True, max_length=max_len, padding='max_length', return_tensors='pt')
     sentence['input_ids_1'] = tok_res_1['input_ids']
     sentence['attention_mask_1'] = tok_res_1['attention_mask']
@@ -67,7 +67,7 @@ def get_pairwise_similarity(dataset, model_path, tokenizer_file, aa_mapping, pro
     dataset = dataset.map(lambda x: map_amino_acids(x, aa_mapping, 'prot_2'), num_proc=proc)
 
     tokenizer = load_tokenizer(tokenizer_file, max_len)
-    dataset = dataset.map(lambda x: get_token_ids(x, tokenizer, max_len), batched=True, num_proc=proc)
+    dataset = dataset.map(lambda x: get_token_ids(x, tokenizer, max_len-2), batched=True, num_proc=proc) # <s> and <\s> are added to sequence
     dataset.set_format(type="torch", columns=['input_ids_1', 'input_ids_2', 'attention_mask_1', 'attention_mask_2'])
 
     model, device = load_model(model_path, device_num)

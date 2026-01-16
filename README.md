@@ -202,5 +202,7 @@ python -m evaluation.eval_model --file_lst results_task1.pkl results_task2.pkl -
 
 ## Contact
 For questions about this repository, please contact us:
+
 Ella Rannon: [ellarannon@mail.tau.ac.il](mailto:ellarannon@mail.tau.ac.il)
+
 David Burstein: [davidbur@tauex.tau.ac.il](mailto:davidbur@tauex.tau.ac.il)

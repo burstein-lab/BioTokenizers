@@ -1,6 +1,5 @@
 import os
 import re
-from collections import defaultdict
 import pickle
 import glob
 from datasets import load_dataset
@@ -55,7 +54,6 @@ class EmbeddingClassifier:
         self.train_embeddings = embeddings
         self.train_labels = labels
         self.classes = torch.unique(labels)
-
 
     def _compute_distances(
             self,
@@ -182,7 +180,7 @@ def get_zero_shot_performance_per_model(data_dir, emb_dir, model_path, tokenizer
     model_name = f'ProtBERTa_{aa_mapping}'
     train_embeddings, train_labels, test_embeddings, test_labels = get_train_test_embeddings(data_dir, emb_dir, tokenizer_path, model_path, task, aa_mapping, proc=proc, col=col, max_length=max_length, device=device, batch_size=batch_size)
 
-    classifier = EmbeddingClassifier(k=k, distance_metric=distance_metric)
+    classifier = EmbeddingClassifier(k=k, distance_metric=distance_metric, chunk_size=batch_size)
     classifier.fit(train_embeddings,  train_labels)
 
     # Predict on test set

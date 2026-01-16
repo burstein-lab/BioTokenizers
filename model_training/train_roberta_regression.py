@@ -50,11 +50,10 @@ def main(args):
     print(torch.cuda.is_available(), flush=True)
     device = torch.device(f"cuda" if torch.cuda.is_available() and args.device != -1 else "cpu")
 
-    train_file_num = 4 if args.debug else 0
     get_val = os.path.exists(os.path.join(args.dataset, 'validation'))
-    train_dataset, test_dataset, eval_dataset = get_downstream_train_test(args.dataset, mapping_code=args.aa_mapping, train_file_num=train_file_num, proc=args.ncpu, get_val=get_val)
+    train_dataset, test_dataset, eval_dataset = get_downstream_train_test(args.dataset, mapping_code=args.aa_mapping, train_file_num=0, proc=args.ncpu, get_val=get_val)
 
-    model_path = os.path.join(args.model_path, args.save_prefix)
+    model_path = os.path.join(args.model_outdir, args.save_prefix)
     tokenizer = load_tokenizer(args.tokenizer_file, args.max_length)
     clear_cache()
 
@@ -140,7 +139,7 @@ if __name__ == '__main__':
     parser.add_argument('--aa_mapping', '-am', type=int, default=20, help='How many options to encode amino acids. default: 20 (regular coding)')
     parser.add_argument('--model', help='path to a directory with the relevant pretrained model')
     parser.add_argument('--max-length', type=int, default=1026, help='maximal sequence length')
-    parser.add_argument('--model-path', default=os.path.join(MAIN_DIR, 'models/'), help='path to a directory to save model outputs')
+    parser.add_argument('--model_outdir', default=os.path.join(MAIN_DIR, 'models/'), help='path to a directory to save model outputs')
     parser.add_argument('--tokenizer_file', help='path to tokenizer file')
     parser.add_argument('--save-prefix', help='path prefix for saving models')
 
@@ -152,7 +151,6 @@ if __name__ == '__main__':
     parser.add_argument('--loss', default='mae', help='which loss function method we want. can be mae, mse, huber, meanvar. default:mae')
 
     parser.add_argument('--ncpu', type=int, default=10, help='number of cpus')
-    parser.add_argument('--debug', action='store_true')
     parser.add_argument('--freeze', action='store_true', help="Freeze all params other than the classification head, so we won't overfit. default: False")
 
     # training parameters
@@ -166,7 +164,6 @@ if __name__ == '__main__':
     parser.add_argument('--eval_steps', type=int, default=500, help='number of step between running model on eval_set')
     parser.add_argument('--device', type=int, default=-1, help='compute device to use')
 
-    parser.set_defaults(debug=False)
     parser.set_defaults(freeze=False)
     args = parser.parse_args()
 

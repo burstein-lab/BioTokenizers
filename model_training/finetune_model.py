@@ -64,9 +64,8 @@ def main(args):
     device = torch.device(f"cuda" if torch.cuda.is_available() and args.device != -1 else "cpu")
 
     # load dataset train and test splits
-    train_file_num = 4 if args.debug else 0
     get_val = os.path.exists(os.path.join(args.dataset, 'validation'))
-    train_dataset, test_dataset, eval_dataset = get_downstream_train_test(args.dataset, mapping_code=20 if args.task == 'pairwise' else args.aa_mapping, train_file_num=train_file_num, proc=args.ncpu, get_val=get_val)
+    train_dataset, test_dataset, eval_dataset = get_downstream_train_test(args.dataset, mapping_code=20 if args.task == 'pairwise' else args.aa_mapping, train_file_num=0, proc=args.ncpu, get_val=get_val)
 
     model_path = os.path.join(args.model_outdir, args.save_prefix)
     tokenizer = load_tokenizer(args.tokenizer_file, args.max_length)
@@ -178,8 +177,7 @@ if __name__ == '__main__':
     parser.add_argument('--save-prefix', default='finetuned_ProtBERTa', help='path prefix for saving models')
 
     parser.add_argument('--ncpu', type=int, default=10, help='number of cpus')
-    parser.add_argument('--n_labels', type=int, help='Number of possible classes.')
-    parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--n_labels', type=int, default=2, help='Number of possible classes. Default: 2')
     parser.add_argument('--freeze', action='store_true', help="Freeze all params other than the classification head, so we won't overfit. default: False")
 
     # training parameters
@@ -194,7 +192,6 @@ if __name__ == '__main__':
     parser.add_argument('--logging-interval', type=int, default=100, help='number of step between data logging')
     parser.add_argument('--eval_steps', type=int, default=1000, help='number of step between running model on eval_set')
     parser.add_argument('--device', type=int, default=-1, help='compute device to use. Choose -1 for cpu. Default: -1')
-    parser.set_defaults(debug=False)
     parser.set_defaults(freeze=False)
     args = parser.parse_args()
 

@@ -65,7 +65,7 @@ def main(args):
     data_collator = DataCollatorWithPadding(tokenizer)
 
     # initialize the model with the config
-    config = AutoConfig.from_pretrained(args.model)
+    config = AutoConfig.from_pretrained(args.input_model)
     config.update({"dropout": args.dropout, "hidden_dim": args.hidden_dim, "pooling_method": args.pooling, "num_attention_heads": args.n_attention_heads, "loss": args.loss, "model_type": "roberta_regression"})
     model = RobertaForRegression(config).to(device)
 
@@ -136,19 +136,19 @@ if __name__ == '__main__':
     # training dataset - '../'
     parser.add_argument('--dataset', help='path to a directory with .csv train, test and test_sampled dataset')
     parser.add_argument('--col_name', '-col', type=str, default='prot', help='Column name for protein sequences. default: prot')
-    parser.add_argument('--aa_mapping', '-am', type=int, default=20, help='How many options to encode amino acids. default: 20 (regular coding)')
-    parser.add_argument('--model', help='path to a directory with the relevant pretrained model')
+    parser.add_argument('--aa_mapping', '-am', type=int, default=20, help='Size of the chosen amino acid alphabet. default: 20 (regular coding)')
+    parser.add_argument('--input_model', help='path to a directory with the relevant pretrained model')
     parser.add_argument('--max-length', type=int, default=1026, help='maximal sequence length')
     parser.add_argument('--model_outdir', default=os.path.join(MAIN_DIR, 'models/'), help='path to a directory to save model outputs')
     parser.add_argument('--tokenizer_file', help='path to tokenizer file')
-    parser.add_argument('--save-prefix', help='path prefix for saving models')
+    parser.add_argument('--save-prefix', help='path prefix for saving models', default='finetuned_regrssion_ProtBERTa')
 
     #finetuning parameters
     parser.add_argument('--dropout', type=float, default=0.15, help='dropout rate')
     parser.add_argument('--hidden_dim', type=int, default=256, help='size of hidden dim if we want regressor to have hidden layer, None for no hidden layer. Default:256')
     parser.add_argument('--pooling', default='mean', help='which pooling method we want. can be cls, mean, max, attention, multihead_attention. default:mean')
     parser.add_argument('--n_attention_heads', type=int, default=8, help='Number of attention heads if we use multihead_attention pooling. Dimension size should be divisble by it. Default: 8')
-    parser.add_argument('--loss', default='mae', help='which loss function method we want. can be mae, mse, huber, meanvar. default:mae')
+    parser.add_argument('--loss', default='mae', help='which loss function method we want. can be mae, mse, huber. default:mae')
 
     parser.add_argument('--ncpu', type=int, default=10, help='number of cpus')
     parser.add_argument('--freeze', action='store_true', help="Freeze all params other than the classification head, so we won't overfit. default: False")
@@ -157,8 +157,8 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--batch_size', type=int, default=64, help='Batch size. Default: 64')
     parser.add_argument('-e', '--epochs', type=int, default=15, help='number of data epochs')
     parser.add_argument('-lr', '--learning_rate', type=float, default=2e-5, help='Learning rate. default: 2e-5')
-    parser.add_argument('--weight_decay', type=float, default=0.01, help='Weight decay. Default: 0.01')
-    parser.add_argument('--warmup_steps', type=int, default=500, help='Warmup steps. Default: 500')
+    parser.add_argument('--weight_decay', '-wd', type=float, default=0.01, help='Weight decay. Default: 0.01')
+    parser.add_argument('--warmup_steps', '-ws', type=int, default=500, help='Warmup steps. Default: 500')
     parser.add_argument('--save-interval', type=int, default=1000, help='number of step between data saving')
     parser.add_argument('--logging-interval', type=int, default=100, help='number of step between data logging')
     parser.add_argument('--eval_steps', type=int, default=500, help='number of step between running model on eval_set')

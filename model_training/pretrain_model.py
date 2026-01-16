@@ -37,7 +37,7 @@ def main(args):
     print('got dataset')
 
     # configure model output path
-    model_path = os.path.join(args.model_path, args.save_prefix)
+    model_path = os.path.join(args.model_outdir, args.save_prefix)
     os.makedirs(model_path, exist_ok=True)
 
     # load a tokenizer or train from scratch if needed
@@ -86,7 +86,7 @@ def main(args):
         gradient_accumulation_steps=args.gradient_accumulation,
         per_device_eval_batch_size=args.batch_size,
         logging_steps=args.logging_interval,
-        eval_steps=1000,
+        eval_steps=args.eval_steps,
         save_steps=args.save_interval,
         load_best_model_at_end=True,
     )
@@ -111,8 +111,8 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Pre-Training ProtBERTa Models')
     # training dataset
-    parser.add_argument('--dataset', default='/davidb/ellarannon/microbial_encoder/corpus/', help='path to a directory with .csv train and test dataset')
-    parser.add_argument('--aa_mapping', '-am', type=int, default=20, help='How many options to encode amino acids. default: 20 (regular coding)')
+    parser.add_argument('--dataset', help='path to a directory with .csv train and test dataset')
+    parser.add_argument('--aa_mapping', '-am', type=int, default=20, help='Size of the chosen amino acid alphabet. default: 20 (regular coding)')
     parser.add_argument('--col_name', '-col', type=str, default='prot', help='Column name for protein sequences. default: prot')
     parser.add_argument('--pre_tokenized', action='store_true', help='Choose this if the dataset is already tokenized. Default: False')
     parser.add_argument('--same_dir', action='store_true', help='Choose this if all the files in the dataset are in the same directory, and not in different sub-directories. Default: False')
@@ -123,7 +123,7 @@ if __name__ == '__main__':
     parser.add_argument('--min_freq', '-mf', type=int, default=2, help='How many times a token should be observed to be kept.default: 2')
     parser.add_argument('--tokenizer_file', help='path to tokenizer file, saves into it if doesnt exist')
 
-    parser.add_argument('--model-path', default=os.path.join(MAIN_DIR, 'models'), help='path to a directory to save model outputs')
+    parser.add_argument('--model_outdir', default=os.path.join(MAIN_DIR, 'models'), help='path to a directory to save model outputs')
     parser.add_argument('--model', default='', help='path to existing model we want to load. If empty, we initialize it. default: ''')
     parser.add_argument('--save-prefix', default='pretrained-ProtBERTa', help='path prefix for saving models')
     parser.add_argument('--max-length', type=int, default=1026, help='maximal sequence length')
@@ -137,7 +137,8 @@ if __name__ == '__main__':
     parser.add_argument('-ga', '--gradient_accumulation', type=int, default=8, help='Gradient Accumulation. Default: 8')
     parser.add_argument('-e', '--epochs', type=int, default=5, help='number of epochs')
     parser.add_argument('--save-interval', type=int, default=1000, help='number of step between data saving')
-    parser.add_argument('--logging-interval', type=int, default=1000, help='number of step between data logginh')
+    parser.add_argument('--logging-interval', type=int, default=1000, help='number of step between data logging')
+    parser.add_argument('--eval_steps', type=int, default=1000, help='number of step between running model on eval_set')
     parser.add_argument('--device', type=int, default=-1, help='compute device to use, -1 for cpu. default: -1')
     parser.set_defaults(debug=False)
     parser.set_defaults(pre_tokenized=False)

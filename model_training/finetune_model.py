@@ -65,7 +65,7 @@ def main(args):
 
     # load dataset train and test splits
     get_val = os.path.exists(os.path.join(args.dataset, 'validation'))
-    train_dataset, test_dataset, eval_dataset = get_downstream_train_test(args.dataset, mapping_code=20 if args.task == 'pairwise' else args.aa_mapping, train_file_num=0, proc=args.ncpu, get_val=get_val)
+    train_dataset, test_dataset, eval_dataset = get_downstream_train_test(args.dataset, mapping_code=20 if args.is_pairwise else args.aa_mapping, train_file_num=0, proc=args.ncpu, get_val=get_val)
 
     model_path = os.path.join(args.model_outdir, args.save_prefix)
     tokenizer = load_tokenizer(args.tokenizer_file, args.max_length)
@@ -73,7 +73,7 @@ def main(args):
     clear_cache()
 
     # tokenizing train & test dataset
-    if args.task == 'pairwise':
+    if args.is_pairwise:
         train_dataset = prepare_pairwise_dataset(train_dataset, args.aa_mapping, tokenizer, args.max_length, 10)
         test_dataset = prepare_pairwise_dataset(test_dataset, args.aa_mapping, tokenizer, args.max_length, 10)
         eval_dataset = prepare_pairwise_dataset(eval_dataset, args.aa_mapping, tokenizer, args.max_length, 10)
@@ -167,8 +167,8 @@ if __name__ == '__main__':
     # training dataset
     parser.add_argument('--dataset', help='path to a directory with .csv train, test and test_sampled dataset')
     parser.add_argument('--col_name', '-col', type=str, default='prot', help='Column name for protein sequences. default: prot')
-    parser.add_argument('--task', default='other', help='The finetuning task. Either pairwise or other. default:other')
-    parser.add_argument('--aa_mapping', '-am', type=int, default=20, help='How many options to encode amino acids. default: 20 (regular coding)')
+    parser.add_argument('--is_pairwise', action='store_true', help='Choose this to finetune the model on a pairwise classification task. Default: False')
+    parser.add_argument('--aa_mapping', '-am', type=int, default=20, help='Size of the chosen amino acid alphabet. default: 20 (regular coding)')
     parser.add_argument('--train_samples', '-ts', type=int, default=0, help='How much to sample from train dataset. default: 0 (All training data)')
     parser.add_argument('--input_model', help='path to a directory with the relevant pretrained model')
     parser.add_argument('--max-length', type=int, default=1026, help='maximal sequence length')
@@ -192,6 +192,7 @@ if __name__ == '__main__':
     parser.add_argument('--logging-interval', type=int, default=100, help='number of step between data logging')
     parser.add_argument('--eval_steps', type=int, default=1000, help='number of step between running model on eval_set')
     parser.add_argument('--device', type=int, default=-1, help='compute device to use. Choose -1 for cpu. Default: -1')
+    parser.set_defaults(is_pairwise=False)
     parser.set_defaults(freeze=False)
     args = parser.parse_args()
 

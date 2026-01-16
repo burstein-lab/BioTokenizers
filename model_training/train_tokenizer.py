@@ -31,12 +31,12 @@ def train_amino_acid_tokenizer(data_iterator, vocab_size, min_freq, output_file,
 
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser('Training a tokenizer from scratch.')
+    parser = argparse.ArgumentParser('Training a BPE tokenizer from scratch.')
     parser.add_argument('--dataset_dir', help='path to dir with corpus files')
     parser.add_argument('--output_prefix', help='Prefix to output file, should include full path')
     parser.add_argument('--col_name', '-col', type=str, default='prot', help='Column name for protein sequences. default: prot')
     parser.add_argument('--vocab_size', '-vc', type=int, default=5000, help='size of vocabulary')
-    parser.add_argument('--aa_mapping', '-am', type=int, default=20, help='How many options to encode amino acids. default: 20 (regular coding)')
+    parser.add_argument('--aa_mapping', '-am', type=int, default=20, help='Size of the chosen amino acid alphabet. default: 20 (regular coding)')
     parser.add_argument('--min_freq', '-mf', type=int, default=2, help='How many times a token should be observed to be kept.default: 2')
     args = parser.parse_args()
 

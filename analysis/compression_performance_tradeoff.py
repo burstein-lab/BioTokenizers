@@ -18,28 +18,36 @@ from evaluation.protberta_pairwise_similarity import get_pairwise_similarity, ge
 
 
 TASKS_COLORS = ['#9e0142', '#f46d43', '#66c2a5', '#2b83ba', '#542788']
+MULTICLASS_METRICS_MAPPING = {'Best F1': 'f1_weighted', 'Precision of Best F1': 'precision_weighted', 'Recall of Best F1': 'recall_weighted', 'Precision of Best MCC': 'precision_weighted', 'Recall of Best MCC': 'recall_weighted'}
 
 
 def plot_multi_performance_compression_tradeoff(file_lst, tasks, output_path, metric, is_regression=False):
     plt.figure(figsize=(12, 5.5))
     min_value = None
     colors = TASKS_COLORS if len(file_lst) <= len(TASKS_COLORS) else sns.color_palette("hls", len(file_lst)).as_hex()
+    lowest_y_values = [None, None, None, None, None]
     for index in range(len(file_lst)):
         df = pd.read_pickle(file_lst[index]).set_index('Model')
-        min_value = df[metric].min() if min_value is None else min(min_value, df[metric].min())
+        rel_metric = metric if metric in df.columns else MULTICLASS_METRICS_MAPPING.get(metric, metric)
+        min_value = df[rel_metric].min() if min_value is None else min(min_value, df[rel_metric].min())
         x_values = df['Compression_Ratio']
         if is_regression:  # For regression lower is better
-            y_values = df.loc['ProtBERTa_20', metric].values[0] / df[metric]
+            y_values = df.loc['ProtBERTa_20', rel_metric] / df[rel_metric]
         else:
-            y_values = df[metric] / df.loc['ProtBERTa_20', metric].values[0]
+            y_values = df[rel_metric] / df.loc['ProtBERTa_20', rel_metric]
+
+        # Updating the lowest values for annotations
+        for i, yv in enumerate(y_values):
+            if lowest_y_values[i] is None or yv < lowest_y_values[i]:
+                lowest_y_values[i] = yv
 
         plt.plot(x_values, y_values, marker='o', markersize=6, color=colors[index], label=tasks[index], linewidth=2, alpha=0.8)
 
         # Add annotations for the model to the Last task only to act as a header for each vertical column of points
-        if index == len(df) - 1:
-            for i, (xi, yi) in enumerate(zip(x_values, y_values)):
+        if index == len(file_lst) - 1:
+            for i, (xi, yi) in enumerate(zip(x_values, lowest_y_values)):
                 plt.annotate(
-                    df.iloc[i].index,
+                    df.index[i],
                     (xi, yi),
                     textcoords="offset points",
                     xytext=(0, -17),  # Position the text 12pts above the point
@@ -182,6 +190,7 @@ def run_zeroshot_classification_compression_tradeoff(model_path, tokenizer_file,
         print(f'aa_mapping: {aa_mapping}')
         tokenizer_path = tokenizer_file + str(aa_mapping)
         tokenizer = load_tokenizer(tokenizer_path, max_length=max_length)
+        model_path = re.sub('ProtBERTa_(20|12|4|8|2)', f'ProtBERTa_{aa_mapping}', model_path)
         train_embeddings, train_labels, test_embeddings, test_labels = get_train_test_embeddings(dataset, emb_dir, tokenizer_path, model_path, task, aa_mapping, proc=proc, col=col, max_length=max_length, device=device, batch_size=batch_size)
         _, test_dataset, _ = get_downstream_train_test(dataset, mapping_code=aa_mapping, proc=proc)
 
@@ -269,7 +278,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.file_lst:
-        plot_multi_performance_compression_tradeoff(args.file_lst, args.tasks, args.out_dir, args.metric, is_regression=args.is_regression)
+        plot_multi_performance_compression_tradeoff(args.file_lst, args.tasks, os.path.join(args.out_dir, f'{"regression_" if args.is_regression else ""}multi_task_{args.metric}_tradeoff.svg'), args.metric, is_regression=args.is_regression)
     elif args.zeroshot:
         if args.is_pairwise:
             run_pairwise_zeroshot_compression_tradeoff(args.model_path, args.tokenizer_prefix, args.dataset, args.out_dir, args.ncpu, device=args.device, batch_size=args.batch_size, max_length=args.max_length)

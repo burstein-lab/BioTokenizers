@@ -25,6 +25,7 @@ from data_processing.get_encoded_dataset import AA_MAPPING_DICT
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 logger = logging.getLogger(__name__)
 REL_METRICS = ['bacarch_bigene_layer_4_f1', 'modac_paralogy_bigene_layer_4_recall_at_50', 'convergent_enzymes_classification_layer_4_f1', 'ec_classification_layer_4_f1', 'MIBIG_protein_classification_layer_4_f1', 'mopb_clustering_layer_4_v_measure', 'fefe_phylogeny_layer_4_top_corr', 'rpob_arch_phylogeny_layer_4_top_corr', 'rpob_bac_phylogeny_layer_4_top_corr', 'cyano_operonic_pair_layer_4_cos_sim_ap', 'ecoli_operonic_pair_layer_4_cos_sim_ap', 'vibrio_operonic_pair_layer_4_cos_sim_ap', 'arch_retrieval_layer_4_map_at_5', 'euk_retrieval_layer_4_map_at_5']
+CLEAN_REL_METRICS = {'bacarch_bigene_f1': 'bac_arch_analogs', 'modac_paralogy_bigene_recall_at_50': 'ModAC_paralogs', 'convergent_enzymes_classification_f1': 'convergent_enzymes', 'ec_classification_f1': 'EC_numbers', 'MIBIG_protein_classification_f1': 'biosynthetic_gene_cluster', 'mopb_clustering_v_measure': 'MopB_clustering', 'fefe_phylogeny_top_corr': 'FeFe_phylogeny', 'rpob_arch_phylogeny_top_corr': 'RpoB_arch_phylogeny', 'rpob_bac_phylogeny_top_corr': 'RpoB_bac_phylogeny', 'cyano_operonic_pair_cos_sim_ap': 'Cyano_operonic_pair', 'ecoli_operonic_pair_cos_sim_ap': 'Ecoli_operonic_pair', 'vibrio_operonic_pair_cos_sim_ap': 'Vibrio_operonic_pair', 'arch_retrieval_map_at_5': 'arch_retrieval', 'euk_retrieval_map_at_5': 'euk_retrieval'}
 MODELS = ['ProtBERTa_2', 'ProtBERTa_4', 'ProtBERTa_8', 'ProtBERTa_12', 'ProtBERTa_20']
 COLORS = {'ProtBERTa_2': '#E6AA61', 'ProtBERTa_4': '#e67961', 'ProtBERTa_8': '#ce4763', 'ProtBERTa_12': '#a3386f', 'ProtBERTa_20': '#672a6b'}
 
@@ -207,10 +208,11 @@ def process_DGEB_results(res_dir):
 
 
 def plot_selected_metrics(res, output_dir, metric_lst=REL_METRICS, prefix='DGEB_selected_metrics'):
-    rel_metrics = [metric.replace('layer_4_', '') for metric in metric_lst]
+    rel_metrics = [CLEAN_REL_METRICS[metric.replace('layer_4_', '')] for metric in metric_lst]
     for metric in metric_lst:
-        res.loc[metric.replace('layer_4_', '')] = res.loc[[metric, metric.replace('layer_4', 'layer_7')], :].max()
+        res.loc[CLEAN_REL_METRICS[metric.replace('layer_4_', '')]] = res.loc[[metric, metric.replace('layer_4', 'layer_7')], :].max()
     res.loc[rel_metrics].plot.bar(color=COLORS, alpha=0.9)
+    plt.xticks(rotation=60, ha='right', rotation_mode='anchor')
     plt.legend(fontsize=9)
     print(pd.DataFrame(res.loc[rel_metrics].mean()).T.round(3).iloc[:, :])
     plt.savefig(os.path.join(output_dir, f'{prefix}.svg'), dpi=300, bbox_inches="tight")

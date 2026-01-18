@@ -20,7 +20,7 @@ def create_regression_cleveland_plot(file_lst, title_lst, metric, output_file):
     :param output_file: Path to save the output figure (should end with .pdf or .svg or .png)
     """
     metric_clean = metric.upper()
-    fig, axes = plt.subplots(1, len(file_lst), figsize=(4 * len(file_lst), len(file_lst)), sharey=True)
+    fig, axes = plt.subplots(1, len(file_lst), figsize=(3 * len(file_lst), len(file_lst)), sharey=True)
     for ind in range(len(file_lst)):
         df = pd.read_pickle(file_lst[ind]).reset_index()
         x_data = df[metric]

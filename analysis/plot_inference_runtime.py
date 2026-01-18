@@ -17,7 +17,7 @@ SIZES = [1, 5, 10, 25, 50]
 
 
 def plot_ProtBerta_runtime_subplots(file_lst, tasks, output_file):
-    fig, ax = plt.subplots(2, 4, figsize=(15, 5))
+    fig, ax = plt.subplots(2, 4, figsize=(15, 8))
 
     for ind in range(len(file_lst)):
         x_ind = math.floor(int(ind / 4))
@@ -38,10 +38,10 @@ def plot_ProtBerta_runtime_subplots(file_lst, tasks, output_file):
 
         # Add grid
         ax[x_ind][y_ind].grid(True, which='both', linestyle='--', linewidth=0.5)
-        ax[x_ind][y_ind].set_title(f"{tasks[ind]}")
+        ax[x_ind][y_ind].set_title(f"{tasks[ind]}", fontsize=14)
 
-    fig.text(0.5, 0.05, 'Number of Sequences (in Thousands)', ha='center', fontsize=14)
-    fig.text(0.0000000001, 0.5, 'Runtime (seconds)', va='center', rotation='vertical', fontsize=14)
+    fig.text(0.5, 0.05, 'Number of Sequences (in Thousands)', ha='center', fontsize=18)
+    fig.text(0.0000000001, 0.5, 'Runtime (seconds)', va='center', rotation='vertical', fontsize=18)
     plt.tight_layout(rect=[0.015, 0.07, 1, 0.95])  # [0, 0.09, 1, 0.95]
     plt.suptitle('ProtBERTa Inference Time Comparison', fontsize=16, y=1.01)
     plt.subplots_adjust(top=0.91)

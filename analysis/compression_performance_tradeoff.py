@@ -52,19 +52,19 @@ def plot_multi_performance_compression_tradeoff(file_lst, tasks, output_path, me
                     textcoords="offset points",
                     xytext=(0, -17),  # Position the text 12pts above the point
                     ha='center',
-                    fontsize=11,
+                    fontsize=12,
                     fontweight='normal',
                     bbox=dict(boxstyle='round,pad=0.2', fc='white', alpha=0.6, ec='none')
                 )
 
     # 5. Formatting and Styling
-    plt.xlabel('Compression Ratio', fontsize=12)
-    plt.ylabel(f'Relative Performance ({clean_col_name(metric)})', fontsize=12)
-    plt.title('Performance vs. Compression Ratio', fontsize=14, pad=15)
+    plt.xlabel('Compression Ratio', fontsize=15)
+    plt.ylabel(f'Relative Performance ({clean_col_name(metric)})', fontsize=15)
+    plt.title('Performance vs. Compression Ratio', fontsize=17, pad=15)
 
     y_limit_bottom = min_value - 0.02
     plt.ylim(bottom=y_limit_bottom)
-    plt.legend(title='Tasks', bbox_to_anchor=(1.02, 1), loc='upper left', frameon=True)
+    plt.legend(title='Tasks', bbox_to_anchor=(1.02, 1), loc='upper left', frameon=True, fontsize=14, title_fontsize=16)
 
     plt.grid(True, linestyle='--', alpha=0.6)
     plt.tight_layout()

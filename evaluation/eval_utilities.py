@@ -113,15 +113,15 @@ def plot_binary_AUPR_AUROC(labels, probs, model_label, color, axes):
 
 
 def finish_AUPR_AUROC_figure(f, axes, img_path):
-    axes[0].set_xlabel('FPR')
-    axes[1].set_xlabel('Recall')
-    axes[0].set_ylabel('TPR')
-    axes[1].set_ylabel('Precision')
-    axes[0].legend(loc="best", fontsize='small')
-    axes[1].legend(loc="best", fontsize='small')
+    axes[0].set_xlabel('FPR', fontsize=12)
+    axes[1].set_xlabel('Recall', fontsize=12)
+    axes[0].set_ylabel('TPR', fontsize=12)
+    axes[1].set_ylabel('Precision', fontsize=12)
+    axes[0].legend(loc="best", fontsize='medium')
+    axes[1].legend(loc="best", fontsize='medium')
     axes[0].plot([0, 1], [0, 1], '--', color='grey')
-    axes[0].set_title(f"ROC curve")
-    axes[1].set_title(f"Precision Recall curve")
+    axes[0].set_title(f"ROC curve", fontsize=14)
+    axes[1].set_title(f"Precision Recall curve", fontsize=14)
     f.tight_layout()
     plt.savefig(img_path)
     plt.close()

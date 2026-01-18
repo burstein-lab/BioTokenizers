@@ -60,8 +60,8 @@ def plot_multi_performance_compression_tradeoff(file_lst, tasks, output_path, me
     # 5. Formatting and Styling
     plt.xlabel('Compression Ratio', fontsize=15)
     plt.ylabel(f'Relative Performance ({clean_col_name(metric)})', fontsize=15)
-    plt.xticks(fontsize=10)
-    plt.yticks(fontsize=10)
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
     plt.title('Performance vs. Compression Ratio', fontsize=17, pad=15)
 
     y_limit_bottom = min_value - 0.02

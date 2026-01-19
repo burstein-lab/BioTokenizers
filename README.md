@@ -1,4 +1,4 @@
-# BioTokenizers: Optimizing Protein Sequence Tokenization: Evaluating Reduced Amino Acid Alphabets for Efficient and Accurate NLP Applications
+# BioTokenizers — Optimizing Protein Tokenization: Reduced Amino Acid Alphabets for Efficient and Accurate Protein Language Models
 
 ## Summary
 

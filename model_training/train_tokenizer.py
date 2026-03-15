@@ -8,7 +8,7 @@ ROBERTA_SPECIAL_TOKENS = ["<unk>", "<pad>", "<s>", "</s>", "<mask>"]
 
 
 def get_training_corpus(dataset_dir, col='prot', aa_mapping_code=20):
-    dataset = get_tokenizer_dataset(dataset_dir, mapping_code=aa_mapping_code)['train']
+    dataset = get_tokenizer_dataset(dataset_dir, mapping_code=aa_mapping_code, col=col)['train']
     for i in range(0, len(dataset), 1000):
         if i % 1000 == 0:
             clear_cache()

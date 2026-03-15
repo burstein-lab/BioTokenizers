@@ -28,15 +28,15 @@ def map_amino_acids(data, mapping_code=20, col='prot'):
     return data
 
 
-def get_tokenizer_dataset(data_dir, mapping_code=20, file_num=0):
+def get_tokenizer_dataset(data_dir, mapping_code=20, file_num=0, col='prot'):
     pattern = os.path.join(data_dir, "*.csv")
     data_files = glob.glob(pattern)
     if file_num > 0:
        data_files = data_files[:file_num]
     os.makedirs(CACHE_DIR, exist_ok=True)
     dataset = load_dataset('csv', data_files=data_files, cache_dir=CACHE_DIR)
-    dataset = dataset.filter(lambda x: '*' not in x['prot'][:-1])  # remove proteins those with * in the middle
-    dataset = dataset.map(lambda x: map_amino_acids(x, mapping_code))
+    dataset = dataset.filter(lambda x: '*' not in x[col][:-1])  # remove proteins those with * in the middle
+    dataset = dataset.map(lambda x: map_amino_acids(x, mapping_code, col=col))
     return dataset
 
 

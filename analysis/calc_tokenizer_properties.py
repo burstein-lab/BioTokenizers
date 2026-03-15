@@ -87,7 +87,7 @@ def get_tokenizer_properties(tokenizer_prefix, test_dataset, output_dir, col='pr
     len_data = []
     for aa_mapping in [2, 4, 8, 12, 20]:
         tokenizer = RobertaTokenizerFast.from_pretrained(tokenizer_prefix + str(aa_mapping), add_prefix_space=False, truncation=False, pad_to_max_length=False, padding=False)
-        test = get_tokenizer_dataset(test_dataset, mapping_code=aa_mapping)['train']
+        test = get_tokenizer_dataset(test_dataset, mapping_code=aa_mapping, col=col)['train']
         test = test.map(lambda e: tokenizer(e[col], truncation=False, padding=False, add_special_tokens=False), batched=True, keep_in_memory=False, num_proc=ncpu)
 
         test = test.map(lambda x: get_tokens(x, tokenizer), batched=False, num_proc=ncpu)  # getting tokens

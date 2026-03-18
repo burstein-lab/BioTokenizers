@@ -8,10 +8,10 @@ from model_training.train_tokenizer import train_amino_acid_tokenizer
 from data_processing.get_encoded_dataset import get_tokenizer_dataset, map_amino_acids
 
 
-SIZES = [5, 10, 50, 100]
+SIZES = [5, 10, 25, 50, 75, 100]
 
 
-def plot_tokenization_time(df, output_file):
+def plot_tokenizer_training_time(df, output_file):
     fig, ax = plt.subplots(figsize=(10, 6))
 
     for model in df['model'].unique():
@@ -28,8 +28,8 @@ def plot_tokenization_time(df, output_file):
         )
 
     ax.set_xlabel(f'Number of Sequences (in Thousands)', fontsize=12)
-    ax.set_ylabel('Tokenization Time (minutes)', fontsize=12)
-    ax.set_title('ProtBERTa Tokenization Time Comparison', fontsize=14)
+    ax.set_ylabel('Training Time (minutes)', fontsize=12)
+    ax.set_title('ProtBERTa Tokenizer Training Time Comparison', fontsize=14)
     ax.grid(True, which='both', linestyle='--', linewidth=0.5)
     ax.legend(fontsize=10)
 
@@ -43,8 +43,8 @@ def get_iterator(dataset, col='prot', aa_mapping_code=20):
         yield dataset[i: i + 1000][col]
 
 
-def create_tokenization_time_plot(dataset, output_dir, repeats=10, size_factor=1000, col='prot', vocab_size=5000, min_freq=2):
-    output_file = os.path.join(output_dir, 'tokenization_time.svg')
+def create_tokenizer_training_time_plot(dataset, output_dir, repeats=10, size_factor=1000, col='prot', vocab_size=5000, min_freq=2):
+    output_file = os.path.join(output_dir, 'tokenizer_training_time.svg')
     tokenizes_dir = os.path.join(output_dir, 'tmp_tokenizers')
     os.makedirs(tokenizes_dir)
     all_res = []
@@ -70,13 +70,13 @@ def create_tokenization_time_plot(dataset, output_dir, repeats=10, size_factor=1
     summary['num'] = summary['model'].apply(lambda x: int(x.split('_')[-1]))
     summary = summary.sort_values(['num', 'size'], ascending=[False, True]).drop(columns=['num'])
     summary.to_pickle(output_file.replace('.svg', '.pkl').replace('.pdf', '.pkl').replace('.png', '.pkl'))
-    plot_tokenization_time(summary, output_file)
+    plot_tokenizer_training_time(summary, output_file)
     os.system(f'rm -rf {tokenizes_dir}')  # clean up tokenizers
 
 
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser('Analysis of the tokenization times of the reduced alphabets')
+    parser = argparse.ArgumentParser('Analysis of the tokenizer training times of the reduced alphabets')
     parser.add_argument('--dataset', help='path to a directory with .csv files')
     parser.add_argument('--out_dir', help='path to result directory')
     parser.add_argument('--n_repeats', type=int, default=10, help='number of repeats to measure for each size')
@@ -86,4 +86,4 @@ if __name__ == '__main__':
     parser.add_argument('--min_freq', '-mf', type=int, default=2, help='How many times a token should be observed to be kept.default: 2')
     args = parser.parse_args()
 
-    create_tokenization_time_plot(args.dataset, args.out_dir, repeats=args.n_repeats, size_factor=args.size_factor, col=args.col_name, vocab_size=args.vocab_size, min_freq=args.min_freq)
+    create_tokenizer_training_time_plot(args.dataset, args.out_dir, repeats=args.n_repeats, size_factor=args.size_factor, col=args.col_name, vocab_size=args.vocab_size, min_freq=args.min_freq)

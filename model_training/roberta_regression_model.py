@@ -24,7 +24,7 @@ class RobertaForRegression(PreTrainedModel):
         if model_name is None:
             model_name = getattr(config, "_name_or_path", "roberta-base")
         initialize_roberta = getattr(config, "initialize_roberta", True)
-        dropout = getattr(config, "dropout", 0.1)
+        dropout = getattr(config, "dropout", 0.15)
         hidden_dim = getattr(config, "hidden_dim", None)
         pooling_method = getattr(config, "pooling_method", "mean")
         num_attention_heads = getattr(config, "num_attention_heads", 8)

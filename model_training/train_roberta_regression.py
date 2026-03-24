@@ -95,7 +95,7 @@ def main(args):
         per_device_eval_batch_size=args.batch_size,
         learning_rate=args.learning_rate,
         weight_decay=args.weight_decay,
-        warmup_steps=args.warmup_steps,
+        warmup_ratio=args.warmup_ratio,
         logging_steps=args.logging_interval,
         eval_steps=args.eval_steps,
         save_steps=args.save_interval,
@@ -158,7 +158,7 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--epochs', type=int, default=15, help='number of data epochs')
     parser.add_argument('-lr', '--learning_rate', type=float, default=2e-5, help='Learning rate. default: 2e-5')
     parser.add_argument('--weight_decay', '-wd', type=float, default=0.01, help='Weight decay. Default: 0.01')
-    parser.add_argument('--warmup_steps', '-ws', type=int, default=500, help='Warmup steps. Default: 500')
+    parser.add_argument('--warmup_ratio', type=int, default=0.1, help='Warmup ratio. Default: 0.1')
     parser.add_argument('--save-interval', type=int, default=1000, help='number of step between data saving')
     parser.add_argument('--logging-interval', type=int, default=100, help='number of step between data logging')
     parser.add_argument('--eval_steps', type=int, default=500, help='number of step between running model on eval_set')

@@ -161,7 +161,7 @@ Options:
 --epochs, -e                  Number of finetuning epochs (default: 15).
 --learning_rate, -lr          Learning rate (default: 2e-5).
 --weight_decay, -wd           Weight decay coefficient (default: 0.01).
---warmup_steps, -ws           Warmup steps for the learning rate scheduler (default: 500).
+--warmup_ratio, -wr           Warmup ratio for the learning rate scheduler (default: 0.1).
 --save-interval               Number of steps between saving model checkpoints (default: 5000).
 --logging-interval            Number of steps between logging training metrics (default: 100).
 --eval_steps                  Number of steps between evaluations on the validation set (default: 500).

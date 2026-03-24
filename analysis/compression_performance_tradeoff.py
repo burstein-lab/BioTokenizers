@@ -11,14 +11,16 @@ from sklearn.metrics import precision_recall_curve
 from utilities import load_model_and_tokenizer, clear_cache, run_model_in_batches, load_tokenizer
 from data_processing.get_encoded_dataset import get_downstream_train_test
 from model_training.finetune_model import prepare_pairwise_dataset
-from evaluation.eval_utilities import get_results_dict, calc_f1_vec, clean_col_name
-from model_training.train_roberta_regression import compute_metrics as compute_metrics_regression
+from evaluation.eval_utilities import get_bootstrap_se, calc_f1_vec, clean_col_name
 from evaluation.ProtBERTa_zeroshot import EmbeddingClassifier, get_train_test_embeddings
-from evaluation.protberta_pairwise_similarity import get_pairwise_similarity, get_all_metrics
+from evaluation.protberta_pairwise_similarity import get_pairwise_similarity, get_all_metrics_se
+from pathlib import Path
+
+os.environ["HF_DATASETS_CACHE"] = os.path.join(Path(__name__).parent.absolute(), "cache")
 
 
 TASKS_COLORS = ['#9e0142', '#f46d43', '#66c2a5', '#2b83ba', '#542788']
-MULTICLASS_METRICS_MAPPING = {'Best F1': 'f1_weighted', 'Precision of Best F1': 'precision_weighted', 'Recall of Best F1': 'recall_weighted', 'Precision of Best MCC': 'precision_weighted', 'Recall of Best MCC': 'recall_weighted'}
+MULTICLASS_METRICS_MAPPING = {'Best F1': 'f1_macro', 'Precision of Best F1': 'precision_macro', 'Recall of Best F1': 'recall_macro', 'Precision of Best MCC': 'precision_macro', 'Recall of Best MCC': 'recall_macro'}
 
 
 def plot_multi_performance_compression_tradeoff(file_lst, tasks, output_path, metric, is_regression=False):
@@ -29,19 +31,24 @@ def plot_multi_performance_compression_tradeoff(file_lst, tasks, output_path, me
     for index in range(len(file_lst)):
         df = pd.read_pickle(file_lst[index]).set_index('Model')
         rel_metric = metric if metric in df.columns else MULTICLASS_METRICS_MAPPING.get(metric, metric)
-        min_value = df[rel_metric].min() if min_value is None else min(min_value, df[rel_metric].min())
         x_values = df['Compression_Ratio']
+        prot_20_bootstrap = df.loc['ProtBERTa_20', f'{rel_metric}_bootstrap']
         if is_regression:  # For regression lower is better
-            y_values = df.loc['ProtBERTa_20', rel_metric] / df[rel_metric]
+            df[f'rel_{rel_metric}'] = df.apply(lambda r: df.loc['ProtBERTa_20', rel_metric] / r[rel_metric], axis=1)
+            df[f'rel_{rel_metric}_bootstrap'] = df[f'{rel_metric}_bootstrap'].apply(lambda x: [prot_20_bootstrap[i] / x[i] for i in range(len(x))])
         else:
-            y_values = df[rel_metric] / df.loc['ProtBERTa_20', rel_metric]
+            df[f'rel_{rel_metric}'] = df.apply(lambda r: r[rel_metric] / df.loc['ProtBERTa_20', rel_metric], axis=1)
+            df[f'rel_{rel_metric}_bootstrap'] = df[f'{rel_metric}_bootstrap'].apply(lambda x: [x[i] / prot_20_bootstrap[i] for i in range(len(x))])
 
+        min_value = df[f'rel_{rel_metric}'].min() if min_value is None else min(min_value, df[f'rel_{rel_metric}'].min())
+        df['se'] = df[f'rel_{rel_metric}_bootstrap'].apply(lambda v: np.std(v) / np.sqrt(len(v)))
         # Updating the lowest values for annotations
-        for i, yv in enumerate(y_values):
+        for i, yv in enumerate(df[f'rel_{rel_metric}']):
             if lowest_y_values[i] is None or yv < lowest_y_values[i]:
                 lowest_y_values[i] = yv
 
-        plt.plot(x_values, y_values, marker='o', markersize=6, color=colors[index], label=tasks[index], linewidth=2, alpha=0.8)
+        y_err = np.array([(df[f'se']).values, df[f'se'].values])
+        plt.errorbar(x_values, df[f'rel_{rel_metric}'], yerr=y_err, fmt='-o', capsize=5, markersize=6, color=colors[index], label=tasks[index], linewidth=2, alpha=0.8)
 
         # Add annotations for the model to the Last task only to act as a header for each vertical column of points
         if index == len(file_lst) - 1:
@@ -62,9 +69,8 @@ def plot_multi_performance_compression_tradeoff(file_lst, tasks, output_path, me
     plt.ylabel(f'Relative Performance ({clean_col_name(metric)})', fontsize=15)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
-    plt.title('Performance vs. Compression Ratio', fontsize=17, pad=15)
 
-    y_limit_bottom = min_value - 0.02
+    y_limit_bottom = min_value - 0.04
     plt.ylim(bottom=y_limit_bottom)
     plt.legend(title='Tasks', bbox_to_anchor=(1.02, 1), loc='upper left', frameon=True, fontsize=14, title_fontsize=16)
 
@@ -77,11 +83,13 @@ def plot_multi_performance_compression_tradeoff(file_lst, tasks, output_path, me
 
 def plot_compression_performance_tradeoff(df, output_dir, task):
     for col in df.columns:
-        if col in ['Model', 'Compression_Ratio', 'success']:
+        if col in ['Model', 'Compression_Ratio', 'success'] or '_se' not in col:
             continue
+
         clean_col = clean_col_name(col)
         plt.figure(figsize=(10, 6))
-        plt.scatter(df['Compression_Ratio'], df[col], s=100, c='#0c2c84', alpha=0.6)
+        y_err = np.array([(df[f'{col}_se']).values, df[f'{col}_se'].values])
+        plt.errorbar(df['Compression_Ratio'], df[col], yerr=y_err, fmt='-o', capsize=5, label=f'{clean_col} ± SE',color='#0c2c84', alpha=0.6)
 
         for i, txt in enumerate(df['Model']):
             plt.annotate(txt, (df['Compression_Ratio'][i], df[col][i]), xytext=(5, 5), textcoords='offset points')
@@ -139,7 +147,7 @@ def run_mcnemar_test(df):
             print(">> RESULT: The difference is NOT statistically significant (Effective Tie).")
 
 
-def finetuned_models_compression_tradeoff(model_path, tokenizer_file, dataset, task, output_dir, device_num, n_labels=2, is_pairwise=False, is_regression=False, col='prot', max_length=1026, proc=10, batch_size=64):
+def finetuned_models_compression_tradeoff(model_path, tokenizer_file, dataset, task, output_dir, device_num, n_labels=2, is_pairwise=False, is_regression=False, col='prot', max_length=1026, proc=10, batch_size=64, n_bootstrap=1000, metric='macro'):
     all_res = []
     baseline_len = 0
     for aa_mapping in [20, 12, 8, 4, 2]:
@@ -147,7 +155,7 @@ def finetuned_models_compression_tradeoff(model_path, tokenizer_file, dataset, t
         print(f'aa_mapping: {aa_mapping}')
         tokenizer_path = tokenizer_file + str(aa_mapping)
         model_path = re.sub('ProtBERTa_(20|12|4|8|2)', f'ProtBERTa_{aa_mapping}', model_path)
-        model, tokenizer, device = load_model_and_tokenizer(model_path, tokenizer_path, device_num, max_length=max_length, model_type='regression' if is_regression else'SeqClass', n_labels=n_labels)
+        model, tokenizer, device = load_model_and_tokenizer(model_path, tokenizer_path, device_num, max_length=max_length, model_type='regression' if is_regression else 'SeqClass', n_labels=n_labels)
         _, test_dataset, _ = get_downstream_train_test(dataset, mapping_code=20 if is_pairwise else aa_mapping, proc=proc)
 
         if is_pairwise:
@@ -163,12 +171,12 @@ def finetuned_models_compression_tradeoff(model_path, tokenizer_file, dataset, t
         model_res = run_model_in_batches(model, tokenizer, test_dataset, device, batch_size=batch_size)
         labels = test_dataset.to_pandas()['label'].tolist()
         if is_regression:
-            res_dict = compute_metrics_regression((model_res, labels))
+            res_dict = get_bootstrap_se(labels, model_res, n_labels, n_bootstrap=n_bootstrap, is_regression=True)
         else:
-            res_dict = get_results_dict(model_res, labels, n_labels=n_labels)
+            res_dict = get_bootstrap_se(labels, model_res, n_labels=n_labels, n_bootstrap=n_bootstrap, metric=metric)
+            print({k:v for k, v in res_dict.items() if '_bootstrap' not in k})
             probs = torch.nn.functional.softmax(model_res.float(), dim=-1).cpu().numpy()
             probs = probs[:, 1] if n_labels == 2 else probs
-            print(res_dict)
             get_model_success(n_labels, probs, labels, res_dict)
 
         res_dict['Model'] = f'ProtBERTa_{aa_mapping}'
@@ -184,7 +192,7 @@ def finetuned_models_compression_tradeoff(model_path, tokenizer_file, dataset, t
     df.to_pickle(os.path.join(output_dir, f'{task}_compression_performance_tradeoff.pkl'))
 
 
-def run_zeroshot_classification_compression_tradeoff(model_path, tokenizer_file, dataset, emb_dir, task, output_dir, k=5, distance_metric='cosine', proc=10, col='prot', max_length=1026, device=-1, batch_size=32):
+def run_zeroshot_classification_compression_tradeoff(model_path, tokenizer_file, dataset, emb_dir, task, output_dir, k=5, distance_metric='cosine', proc=10, col='prot', max_length=1026, device=-1, batch_size=32, n_bootstrap=1000):
     all_res = []
     baseline_len = 0
     for aa_mapping in [20, 12, 8, 4, 2]:
@@ -207,21 +215,21 @@ def run_zeroshot_classification_compression_tradeoff(model_path, tokenizer_file,
         n_labels = len(classifier.classes)
 
         probs = classifier.predict_proba(test_embeddings).cpu()
-        res_dict = get_results_dict(probs, test_labels, n_labels=n_labels, is_probs=True)
+        res_dict = get_bootstrap_se(test_labels, probs, n_labels=n_labels, is_probs=True, n_bootstrap=n_bootstrap)
         probs = probs[:, 1] if n_labels == 2 else probs
-        print(res_dict)
+        print({k:v for k, v in res_dict.items() if '_bootstrap' not in k})
         get_model_success(n_labels, probs.numpy(), test_labels, res_dict)
         res_dict['Model'] = f'ProtBERTa_{aa_mapping}'
         res_dict['Compression_Ratio'] = compression
         all_res.append(res_dict)
 
     df = pd.DataFrame(all_res).dropna(how='all', axis=1)  # remove columns with all NaN values
+    df.drop('success', axis=1).to_pickle(os.path.join(output_dir, f'{task}_compression_zeroshot_performance_tradeoff.pkl'))
     plot_compression_performance_tradeoff(df, output_dir, task)
     run_mcnemar_test(df)
-    df.drop('success', axis=1).to_pickle(os.path.join(output_dir, f'{task}_compression_zeroshot_performance_tradeoff.pkl'))
 
 
-def run_pairwise_zeroshot_compression_tradeoff(model_path, tokenizer_prefix, dataset, output_dir, proc=10, device=-1, batch_size=16, max_length=1026):
+def run_pairwise_zeroshot_compression_tradeoff(model_path, tokenizer_prefix, dataset, output_dir, proc=10, device=-1, batch_size=16, max_length=1026, n_bootstrap=1000):
     all_res = []
     baseline_len = 0
     for aa_mapping in [20, 12, 8, 4, 2]:
@@ -230,8 +238,7 @@ def run_pairwise_zeroshot_compression_tradeoff(model_path, tokenizer_prefix, dat
         tokenizer_path = tokenizer_prefix + str(aa_mapping)
         model_path = re.sub('ProtBERTa_(20|12|4|8|2)', f'ProtBERTa_{aa_mapping}', model_path)
         df = get_pairwise_similarity(dataset, model_path, tokenizer_path, aa_mapping, proc=proc, device_num=device, batch_size=batch_size, max_len=max_length)
-        res_dict = get_all_metrics(df)  # Overall Metrics
-        res_dict['Model'] = f'ProtBERTa_{aa_mapping}'
+        res_dict = get_all_metrics_se(df, n_bootstrap=n_bootstrap)  # Overall Metrics
 
         len_1 = df['attention_mask_1'].apply(lambda x: x.sum())
         len_2 = df['attention_mask_2'].apply(lambda x: x.sum())
@@ -242,7 +249,7 @@ def run_pairwise_zeroshot_compression_tradeoff(model_path, tokenizer_prefix, dat
 
         probs = df['similarity'].values
         get_model_success(2, probs, df['label'].tolist(), res_dict)
-        print(res_dict)
+        print({k:v for k, v in res_dict.items() if '_bootstrap' not in k})
         res_dict['Model'] = f'ProtBERTa_{aa_mapping}'
         res_dict['Compression_Ratio'] = compression
         all_res.append(res_dict)
@@ -265,6 +272,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_length', type=int, default=1026, help='maximal sequence length')
     parser.add_argument('--ncpu', type=int, default=10, help='number of cpus')
     parser.add_argument('-b', '--batch_size', type=int, default=64, help='Batch size. Default: 64')
+    parser.add_argument('--n_bootstrap', type=int, default=1000, help='Number of times to resample to calculate confidence interval. default: 1000')
     parser.add_argument('--zeroshot', action='store_true', help='Choose this to evaluate Zeroshot classification. Default: False')
     parser.add_argument('--is_pairwise', action='store_true', help='Choose this to evaluate a pairwise classification model. If zeroshot is true, zeroshot pairwise classification is evaluated. Default: False')
     parser.add_argument('--is_regression', action='store_true', help='Choose this to evaluate a regression model. Default: False')
@@ -294,9 +302,4 @@ if __name__ == '__main__':
                                               args.out_dir, args.device, n_labels=args.n_labels, col=args.col_name,
                                               is_pairwise=args.is_pairwise, is_regression=args.is_regression,
                                               max_length=args.max_length, proc=args.ncpu, batch_size=args.batch_size)
-
-
-
-
-
 

@@ -1,13 +1,15 @@
 import os
 import torch
 import pandas as pd
+import numpy as np
 import glob
+import matplotlib.pyplot as plt
 import re
 from torch.nn.functional import cosine_similarity
 from datasets import load_dataset
 from data_processing.get_encoded_dataset import map_amino_acids
 from utilities import load_tokenizer, load_model
-from evaluation.eval_utilities import calc_metrics, return_all_eval_metrics_dict, plot_all_metric_results
+from evaluation.eval_utilities import calc_metrics, return_all_eval_metrics_dict, plot_all_metric_results_with_SE, plot_binary_AUPR_AUROC_with_SE, finish_AUPR_AUROC_figure, COLORS
 from model_training.roberta_with_advanced_pooling import mean_pooling
 from pathlib import Path
 
@@ -50,6 +52,31 @@ def get_similarity(batch, model, device):
     return batch
 
 
+def get_all_metrics_se(df, n_bootstrap=100):
+    bootstrapped_stats = []
+    se_results = {}
+    o_stats = get_all_metrics(df)
+    se_results.update(o_stats)
+
+    # Ensure inputs are numpy arrays
+    for i in range(n_bootstrap):
+        # Resample with replacement
+        resampled_df = df.sample(frac=1, replace=True, random_state=i)
+        # Calculate metrics for this bootstrap sample
+        stats = get_all_metrics(resampled_df)
+        bootstrapped_stats.append(stats)
+
+    # Aggregate results into Confidence Intervals
+    metrics = bootstrapped_stats[0].keys()
+
+    for metric in metrics:
+        values = [s[metric] for s in bootstrapped_stats]
+        se = np.std(values) / np.sqrt(len(values))
+        se_results[f"{metric}_se"] = se
+        se_results[f"{metric}_bootstrap"] = np.array(values)  # Store all bootstrap values for potential further analysis
+    return se_results
+
+
 def get_all_metrics(df):
     probs = torch.Tensor(df['similarity'].astype('float64').values)
     probs = torch.cat([1 - probs.unsqueeze(1), probs.unsqueeze(1)], dim=1)
@@ -79,24 +106,30 @@ def get_pairwise_similarity(dataset, model_path, tokenizer_file, aa_mapping, pro
     return df
 
 
-def eval_ProtBERTa_pairwise_similarity(dataset, model_path, tokenizer_prefix, output_dir, output_prefix, proc=10, device_num=-1, batch_size=16, max_len=1026):
+def eval_ProtBERTa_pairwise_similarity(dataset, model_path, tokenizer_prefix, output_dir, output_prefix, proc=10, device_num=-1, batch_size=16, max_len=1026, n_bootstrap=100):
     all_res = {}
+    f, axes = plt.subplots(1, 2, figsize=(10, 5))
     for aa_mapping in AA_MAPPINGS:
         print(aa_mapping, flush=True)
         tokenizer_path = tokenizer_prefix + str(aa_mapping)
         model_path = re.sub('ProtBERTa_(20|12|4|8|2)', f'ProtBERTa_{aa_mapping}', model_path)
         df = get_pairwise_similarity(dataset, model_path, tokenizer_path, aa_mapping, proc=proc, device_num=device_num, batch_size=batch_size, max_len=max_len)
-        res_dict = get_all_metrics(df)  # Overall Metrics
+
+        probs = torch.Tensor(df['similarity'].astype('float64').values)
+        probs = torch.cat([1 - probs.unsqueeze(1), probs.unsqueeze(1)], dim=1)
+        plot_binary_AUPR_AUROC_with_SE(df['label'].values, probs, f'ProtBERTa_{aa_mapping}', COLORS[f'ProtBERTa_{aa_mapping}'], axes, n_bootstrap=n_bootstrap)
+
+        res_dict = get_all_metrics_se(df, n_bootstrap=n_bootstrap)  # Overall Metrics
         all_res[f'ProtBERTa_{aa_mapping}'] = res_dict
 
     res_df = pd.DataFrame(all_res).T
-    res_df.to_csv(os.path.join(output_dir, f'{output_prefix}_overall.tsv'), sep='\t')
+    rel_cols = [col for col in res_df.columns if col +'_se' in res_df.columns]
+    for col in rel_cols:
+        res_df[col] = res_df.apply(lambda r: f'{round(r[col], 3)}±{round(r[col+"_se"], 5)}', axis=1)
+    res_df[['Model'] + rel_cols].to_csv(os.path.join(output_dir, f'{output_prefix}_overall.tsv'), sep='\t')
 
-    plot_all_metric_results(res_df[["precision_macro", "recall_macro", "f1_macro", 'accuracy']], os.path.join(output_dir, f'{output_prefix}_res_macro.svg'), metric='macro')
-    plot_all_metric_results(res_df[["precision_weighted", "recall_weighted", "f1_weighted", 'accuracy']], os.path.join(output_dir, f'{output_prefix}_res_weighted.svg'), metric='weighted')
-    plot_all_metric_results(res_df[['Precision of Best F1', 'Recall of Best F1', 'Best F1']], os.path.join(output_dir, f'{output_prefix}_best_f1.svg'), metric='')
-    plot_all_metric_results(res_df[['Precision of Best MCC', 'Recall of Best MCC', 'Best MCC']], os.path.join(output_dir, f'{output_prefix}_best_mcc.svg'), metric='')
-    plot_all_metric_results(res_df[['auroc', 'aupr']], os.path.join(output_dir, f'{output_prefix}_auroc_aupr.svg'), metric='')
+    finish_AUPR_AUROC_figure(f, axes, os.path.join(output_dir, f'{output_prefix}_zeroshot_AUROC_AUPR.svg'))
+    plot_all_metric_results_with_SE(res_df[['auroc', 'aupr', 'Best F1', 'auroc_se', 'aupr_se', 'Best F1_se']], os.path.join(output_dir, f'{output_prefix}_auroc_aupr.svg'), metric='')
 
 
 if __name__ == '__main__':
@@ -110,8 +143,9 @@ if __name__ == '__main__':
     parser.add_argument('--ncpu', type=int, default=10, help='Number of cpus to use. Default: 10')
     parser.add_argument('-b', '--batch_size', type=int, default=16, help='Batch size. Default: 16')
     parser.add_argument('--max_length', type=int, default=1026, help='maximal sequence length')
+    parser.add_argument('--n_bootstrap', type=int, default=100, help='Number of times to resample to calculate confidence interval. default: 100')
     parser.add_argument('--device', type=int, default=-1, help='compute device to use, -1 for cpu. default: -1')
     args = parser.parse_args()
 
     eval_ProtBERTa_pairwise_similarity(args.dataset, args.model_path, args.tokenizer_prefix, args.output_dir,
-                                       args.output_prefix, proc=args.ncpu, device_num=args.device, batch_size=args.batch_size, max_len=args.max_length)
+                                       args.output_prefix, proc=args.ncpu, device_num=args.device, batch_size=args.batch_size, max_len=args.max_length, n_bootstrap=args.n_bootstrap)

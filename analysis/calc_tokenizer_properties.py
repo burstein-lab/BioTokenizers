@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from transformers import RobertaTokenizerFast
 from data_processing.get_encoded_dataset import get_tokenizer_dataset
+from collections import Counter
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pickle
@@ -84,6 +85,7 @@ def get_lengths(sentence):
 
 def get_tokenizer_properties(tokenizer_prefix, test_dataset, output_dir, col='prot', ncpu=10):
     all_data = {}
+    common_tokens = {}
     len_data = []
     for aa_mapping in [2, 4, 8, 12, 20]:
         tokenizer = RobertaTokenizerFast.from_pretrained(tokenizer_prefix + str(aa_mapping), add_prefix_space=False, truncation=False, pad_to_max_length=False, padding=False)
@@ -93,8 +95,14 @@ def get_tokenizer_properties(tokenizer_prefix, test_dataset, output_dir, col='pr
         test = test.map(lambda x: get_tokens(x, tokenizer), batched=False, num_proc=ncpu)  # getting tokens
         test = test.map(lambda x: get_lengths(x), batched=False, num_proc=ncpu)  # calculating length
 
+        counts = Counter()
+        for i in range(len(test)):
+            counts.update(test[i]['input_ids'])
+        sorted_tokens = [a for a, b in counts.most_common()]
+        common_tokens[f'ProtBERTa_{aa_mapping}'] = [tokenizer.decode(token_id) for token_id in sorted_tokens[:10]]
+
         token_lens = [element for sublist in test['token_lengths'] for element in sublist]
-        all_data[f'ProtBERTa_{aa_mapping}'] = {'seq_lens': test['sentence_length'], 'avg_token_len_per_sent':test['avg_length'], 'all_token_lens': token_lens}
+        all_data[f'ProtBERTa_{aa_mapping}'] = {'seq_lens': test['sentence_length'], 'avg_token_len_per_sent':test['avg_length'], 'all_token_lens': token_lens, 'token_counts': counts, 'sorted_tokens': sorted_tokens}
         len_data.append({'Model': f'ProtBERTa_{aa_mapping}', 'Token Length': f"{round(np.mean(token_lens), 2)}±{round(np.std(token_lens), 2)}",
                             'Sentence Length': f"{round(np.mean(test['sentence_length']), 2)}±{round(np.std(test['sentence_length']), 2)}"})
 
@@ -109,6 +117,11 @@ def get_tokenizer_properties(tokenizer_prefix, test_dataset, output_dir, col='pr
     plot_avg_token_len_violin(all_data, output_dir)
     plot_sentence_len_violin(all_data, output_dir)
     plot_token_len_dist(all_data, output_dir)
+
+    ctdf = pd.DataFrame(common_tokens).reset_index().rename({'index': 'rank'}, axis=1)
+    ctdf['rank'] += 1
+    ctdf.to_csv(os.path.join(output_dir, 'most_common_tokens.tsv'), sep='\t', index=False)
+
 
 
 if __name__ == '__main__':

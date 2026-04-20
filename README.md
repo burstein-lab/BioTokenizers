@@ -2,9 +2,15 @@
 
 ## Summary
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19660042.svg)](https://doi.org/10.5281/zenodo.19660042)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18256943.svg)](https://doi.org/10.5281/zenodo.18256943)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18257091.svg)](https://doi.org/10.5281/zenodo.18257091)
+
+
 Protein language models (pLMs) typically tokenize sequences at the single-amino-acid level using a 20-residue alphabet, resulting in long input sequences and high computational cost. Sub-word tokenization methods such as Byte Pair Encoding (BPE) can reduce sequence length but are limited by the sparsity of long patterns in the standard amino acid alphabet. Reduced amino acid alphabets, which group residues by physicochemical properties, offer a potential solution.
 
 This repository focuses on the combined use of reduced amino acid alphabets and BPE tokenization in protein language models. It consists of code to pre-train RoBERTa-based pLMs using multiple reduced alphabets and evaluate their performance and runtime across diverse downstream tasks. 
+
 
 
 ## Installation
